@@ -140,7 +140,7 @@ class ResetPasswordViewModelTest {
     }
 
     @Test
-    fun testReset_inDemoMode_succeedsAfterDelay() = runTest(mainDispatcherRule.testDispatcher) {
+    fun testReset_withoutFirebaseCode_isRejected() = runTest(mainDispatcherRule.testDispatcher) {
         val viewModel = createViewModel(null)
         viewModel.onNewPasswordChange("securePassword123")
         viewModel.onConfirmPasswordChange("securePassword123")
@@ -156,7 +156,8 @@ class ResetPasswordViewModelTest {
         
         val state = viewModel.uiState.value
         assertFalse(state.isLoading)
-        assertTrue(state.isResetSuccess)
+        assertFalse(state.isResetSuccess)
+        assertTrue(state.errorMessage != null)
     }
 
     @Test

@@ -142,7 +142,7 @@ fun LoginScreen(
                 // Cấu hình Web Client ID từ Firebase Console
                 val googleIdOption = com.google.android.libraries.identity.googleid.GetGoogleIdOption.Builder()
                     .setFilterByAuthorizedAccounts(false)
-                    .setServerClientId("279095552082-6840smd5qqp453ssbjk7ilhbbimklhdv.apps.googleusercontent.com")
+                    .setServerClientId(context.getString(com.example.eduvault.R.string.default_web_client_id))
                     .setAutoSelectEnabled(false)
                     .build()
 

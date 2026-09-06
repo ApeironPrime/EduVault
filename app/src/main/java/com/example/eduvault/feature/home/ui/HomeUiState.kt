@@ -10,7 +10,7 @@ data class HomeUiState(
     val university: String = "Nền tảng chia sẻ tài liệu học thuật",
     val followCount: Int = 0,
     val uploadCount: Int = 0,
-    val savedCount: Int = 12,
+    val savedCount: Int = 0,
     val isLoading: Boolean = false,
     val selectedTab: HomeTab = HomeTab.HOME,
     /** Trạng thái xác thực — Guest hoặc Authenticated */

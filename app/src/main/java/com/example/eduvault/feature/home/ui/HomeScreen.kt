@@ -99,6 +99,7 @@ import com.example.eduvault.feature.quiz.ui.QuizContent
 import com.example.eduvault.feature.quiz.ui.QuizViewModel
 import com.example.eduvault.feature.quiz.ui.QuizSet
 import com.example.eduvault.feature.quiz.ui.Difficulty
+import com.example.eduvault.feature.quiz.ui.QuizScreenMode
 import com.example.eduvault.feature.profile.ui.ProfileContent
 import com.example.eduvault.core.theme.ColorAmber
 import com.example.eduvault.core.theme.ColorAmberDark
@@ -240,7 +241,7 @@ fun HomeScreen(
         CreateQuizSetupDialog(
             quizViewModel = quizViewModel,
             presetTitle = presetDocTitle,
-            onDismiss = { showCreateQuizSetup = false },
+            onDismiss = { showCreateQuizSetup = false; presetDocTitle = "" },
             onConfirm = { docTitle, count, difficulty, format ->
                 showCreateQuizSetup = false
                 val selectedDocObj = quizViewModel.availableDocs.value.find { it.title == docTitle }
@@ -370,21 +371,22 @@ fun HomeScreen(
                 }
             },
             onGenerateSummary = {
-                val deferred = kotlinx.coroutines.CompletableDeferred<Result<String>>()
-                libraryViewModel.generateDocumentSummary(
-                    docId = recentDoc.id,
-                    docTitle = recentDoc.title,
-                    docType = when (recentDoc.type) {
-                        DocType.NOTE -> "Ghi chú"
-                        DocType.QUIZ -> "Quiz"
-                        DocType.SLIDE -> "Slide"
-                        DocType.SUMMARY -> "Tóm tắt"
-                    },
-                    content = libraryUiState.activeDocContent?.content ?: "Tóm tắt tài liệu học thuật ${recentDoc.title} thuộc chủ đề ${recentDoc.course}."
-                ) { result ->
-                    deferred.complete(result)
+                kotlinx.coroutines.suspendCancellableCoroutine { cont ->
+                    libraryViewModel.generateDocumentSummary(
+                        docId = recentDoc.id,
+                        docTitle = recentDoc.title,
+                        docType = when (recentDoc.type) {
+                            DocType.NOTE -> "Ghi chú"
+                            DocType.QUIZ -> "Quiz"
+                            DocType.SLIDE -> "Slide"
+                            DocType.SUMMARY -> "Tóm tắt"
+                        },
+                        content = libraryUiState.activeDocContent?.content
+                            ?: "Tóm tắt tài liệu học thuật ${recentDoc.title} thuộc chủ đề ${recentDoc.course}."
+                    ) { result ->
+                        if (cont.isActive) cont.resume(result) { /* cancelled */ }
+                    }
                 }
-                deferred.await()
             },
             onNoteClick = { doc ->
                 if (uiState.authState is AuthState.Guest) {
@@ -437,14 +439,19 @@ private fun HomeScaffold(
     onNavigateToLogin: () -> Unit = {},
     onNavigateToRegister: () -> Unit = {}
 ) {
+    val quizUiState by quizViewModel.uiState.collectAsState()
+    val showBottomBar = uiState.selectedTab != HomeTab.QUIZ || quizUiState.screenMode == QuizScreenMode.DASHBOARD
+
     Scaffold(
         containerColor = ColorCream,
         bottomBar = {
-            HomeBottomNav(
-                selectedTab = uiState.selectedTab,
-                onTabSelected = onTabSelected,
-                onUploadClick = onUploadClick
-            )
+            if (showBottomBar) {
+                HomeBottomNav(
+                    selectedTab = uiState.selectedTab,
+                    onTabSelected = onTabSelected,
+                    onUploadClick = onUploadClick
+                )
+            }
         },
     ) { paddingValues ->
         when (uiState.selectedTab) {
@@ -644,7 +651,6 @@ private fun HomeContent(
         item {
             HomeTopBar(
                 uiState = uiState,
-                onSearchClick = { onTabSelected(HomeTab.DOCUMENTS) },
                 onNotificationClick = onNotificationClick
             )
         }
@@ -698,23 +704,6 @@ private fun HomeContent(
             Spacer(modifier = Modifier.height(20.dp))
         }
 
-        // ── AI Tools ──────────────────────────────────────────────────────
-        item {
-            SectionHeader(
-                title = "Công cụ AI",
-                modifier = Modifier.padding(horizontal = 14.dp)
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-        }
-        item {
-            AiToolsSection(
-                onTabSelected = onTabSelected,
-                onOpenStudyAi = onOpenStudyAi,
-                onStartQuizSetup = { onStartQuizSetup("") },
-                modifier = Modifier.padding(horizontal = 14.dp)
-            )
-            Spacer(modifier = Modifier.height(20.dp))
-        }
 
         // ── Activity ───────────────────────────────────────────────────────
         item {
@@ -742,7 +731,6 @@ private fun HomeContent(
 @Composable
 private fun HomeTopBar(
     uiState: HomeUiState,
-    onSearchClick: () -> Unit,
     onNotificationClick: () -> Unit
 ) {
     Box(
@@ -808,22 +796,7 @@ private fun HomeTopBar(
                 )
             }
 
-            // Search button
-            Box(
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
-                    .background(ColorInkLight)
-                    .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { onSearchClick() },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Search,
-                    contentDescription = "Tìm kiếm",
-                    tint = ColorTextOnDark,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
+
 
             // Notification button
             Box(
@@ -1226,6 +1199,38 @@ private fun RecentDocsRow(
         DocType.SLIDE to Pair(Color(0xFF4A5568).copy(alpha = 0.12f), Color(0xFF2D3748)),
         DocType.SUMMARY to Pair(Color(0xFFC0392B).copy(alpha = 0.10f), Color(0xFF922B21)),
     )
+
+    if (docs.isEmpty()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color(0xFFF9F6F0))
+                .border(1.dp, ColorBorder, RoundedCornerShape(14.dp))
+                .padding(vertical = 28.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("📂", fontSize = 28.sp)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Chưa có tài liệu nào",
+                    fontFamily = DmSansFamily,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 13.sp,
+                    color = ColorInk
+                )
+                Text(
+                    text = "Hãy upload tài liệu đầu tiên của bạn!",
+                    fontFamily = DmSansFamily,
+                    fontSize = 11.sp,
+                    color = ColorTextOnLightSecondary
+                )
+            }
+        }
+        return
+    }
 
     LazyRow(
         contentPadding = PaddingValues(horizontal = 14.dp),
@@ -1713,13 +1718,14 @@ private class PreviewAuthRepository : com.example.eduvault.domain.repository.Aut
     override suspend fun updateUserQuizStats(score: Float, xpEarned: Int): Result<com.example.eduvault.domain.model.User> = Result.success(com.example.eduvault.domain.model.User("preview_uid", "Preview User", "preview@example.com"))
     override suspend fun toggleSaveDocument(docId: String): Result<com.example.eduvault.domain.model.User> = Result.success(com.example.eduvault.domain.model.User("preview_uid", "Preview User", "preview@example.com"))
     override suspend fun loginWithGoogle(idToken: String): Result<com.example.eduvault.domain.model.User> = Result.success(com.example.eduvault.domain.model.User("preview_uid", "Preview User", "preview@example.com"))
+    override suspend fun changePassword(currentPassword: String, newPassword: String): Result<Unit> = Result.success(Unit)
+    override suspend fun saveQuizSet(quizSet: com.example.eduvault.feature.quiz.ui.QuizSet, questions: List<com.example.eduvault.feature.quiz.ui.QuizQuestion>): Result<Unit> = Result.success(Unit)
     override fun logout() {}
-
 }
 
 private class PreviewDocumentRepository : com.example.eduvault.domain.repository.DocumentRepository {
     override suspend fun uploadUserDocument(title: String, subjectCode: String, docType: String, fileUri: String): Result<Unit> = Result.success(Unit)
-    override suspend fun getDocuments(): Result<List<com.example.eduvault.feature.library.ui.LibraryDoc>> = Result.success(emptyList())
+    override suspend fun getDocuments(): Result<List<com.example.eduvault.domain.model.LibraryDocument>> = Result.success(emptyList())
     override suspend fun reportDocument(docId: String): Result<Unit> = Result.success(Unit)
     override suspend fun getCachedDocViewerContent(docId: String): Result<com.example.eduvault.domain.model.DocViewerTabsContent?> = Result.success(null)
     override suspend fun saveDocViewerContent(docId: String, content: com.example.eduvault.domain.model.DocViewerTabsContent): Result<Unit> = Result.success(Unit)
@@ -1749,10 +1755,16 @@ private fun HomeScreenPreview() {
     EduVaultTheme(darkTheme = false) {
         HomeScaffold(
             uiState = HomeUiState(),
-            recentDocs = HomeViewModel.recentDocs,
-            activityItems = HomeViewModel.activityItems,
-            topicTags = HomeViewModel.topicTags,
-            quizViewModel = QuizViewModel(PreviewAuthRepository(), PreviewDocumentRepository(), PreviewAiRepository(), PreviewNotificationRepository()),
+            recentDocs = emptyList(),
+            activityItems = emptyList(),
+            topicTags = emptyList(),
+            quizViewModel = QuizViewModel(
+                PreviewAuthRepository(),
+                com.example.eduvault.domain.usecase.GetPublishedDocumentsUseCase(PreviewDocumentRepository()),
+                PreviewDocumentRepository(),
+                PreviewAiRepository(),
+                PreviewNotificationRepository()
+            ),
             onTabSelected = {},
             onUploadClick = {},
             onOpenDoc = {},
@@ -1783,24 +1795,12 @@ fun FlashcardDialog(onDismiss: () -> Unit) {
     var currentIndex by remember { mutableIntStateOf(0) }
     var isFlipped by remember { mutableStateOf(false) }
 
-    var flashcardSets by remember { mutableStateOf<List<FlashcardSet>>(emptyList()) }
     var selectedSet by remember { mutableStateOf<FlashcardSet?>(null) }
+    var flashcardSets by remember { mutableStateOf<List<FlashcardSet>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    val sampleSet = FlashcardSet(
-        id = "sample_set",
-        title = "Kinh tế học & Marketing cơ bản (Mẫu)",
-        cardCount = 4,
-        cards = listOf(
-            FlashcardItem("Cung (Supply) là gì?", "Cung là lượng hàng hóa hoặc dịch vụ mà các nhà bán lẻ/sản xuất sẵn sàng bán ở các mức giá khác nhau trong một khoảng thời gian nhất định."),
-            FlashcardItem("Cầu (Demand) là gì?", "Cầu là nhu cầu đi kèm với khả năng thanh toán của người tiêu dùng để mua một loại hàng hóa hoặc dịch vụ ở các mức giá khác nhau."),
-            FlashcardItem("4P trong Marketing là gì?", "4P là mô hình Marketing Mix cổ điển gồm: Product (Sản phẩm), Price (Giá cả), Place (Phân phối), và Promotion (Xúc tiến thương mại)."),
-            FlashcardItem("Chi phí cơ hội?", "Chi phí cơ hội là giá trị của sự lựa chọn tốt nhất đã bị bỏ qua khi đưa ra một quyết định kinh tế.")
-        ),
-        authorId = "system",
-        flashcardSetID = "fc_sample"
-    )
+
 
     LaunchedEffect(Unit) {
         try {
@@ -2589,15 +2589,7 @@ fun CreateQuizSetupDialog(
     val availableDocs by quizViewModel.availableDocs.collectAsStateWithLifecycle()
 
     val docTitles = remember(availableDocs) {
-        availableDocs.map { it.title }.ifEmpty {
-            listOf(
-                "Kinh tế vi mô — Chương 3: Cung & Cầu",
-                "Nguyên lý Marketing — 4P Framework",
-                "Toán Kinh tế — Giải tích & Mẫu số",
-                "Pháp luật đại cương — Hệ thống văn bản pháp luật",
-                "Tài chính doanh nghiệp — Bài tập giá trị thời gian"
-            )
-        }
+        availableDocs.map { it.title }
     }
 
     // Pre-select document based on preset title or default to first

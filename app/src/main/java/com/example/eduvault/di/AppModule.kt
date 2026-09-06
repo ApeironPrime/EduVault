@@ -7,6 +7,7 @@ import com.example.eduvault.data.repository.AdminRepositoryImpl
 import com.example.eduvault.data.repository.AiRepositoryImpl
 import com.example.eduvault.data.repository.NotificationRepositoryImpl
 import com.example.eduvault.data.repository.NoteRepositoryImpl
+import com.example.eduvault.data.repository.FlashcardRepositoryImpl
 import com.example.eduvault.domain.repository.NoteRepository
 import com.example.eduvault.domain.repository.AuthRepository
 import com.example.eduvault.domain.repository.DocumentRepository
@@ -14,8 +15,10 @@ import com.example.eduvault.domain.repository.CategoryRepository
 import com.example.eduvault.domain.repository.AdminRepository
 import com.example.eduvault.domain.repository.AiRepository
 import com.example.eduvault.domain.repository.NotificationRepository
+import com.example.eduvault.domain.repository.FlashcardRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.storage.FirebaseStorage
 import dagger.Binds
 import dagger.Module
@@ -83,6 +86,10 @@ abstract class AppModule {
     @Singleton
     abstract fun bindNoteRepository(impl: NoteRepositoryImpl): NoteRepository
 
+    @Binds
+    @Singleton
+    abstract fun bindFlashcardRepository(impl: FlashcardRepositoryImpl): FlashcardRepository
+
     companion object {
 
         /**
@@ -98,6 +105,10 @@ abstract class AppModule {
         @Provides
         @Singleton
         fun provideFirebaseFirestore(): FirebaseFirestore = FirebaseFirestore.getInstance()
+
+        @Provides
+        @Singleton
+        fun provideFirebaseFunctions(): FirebaseFunctions = FirebaseFunctions.getInstance("asia-southeast1")
 
         /**
          * Cung cấp instance FirebaseStorage duy nhất (Singleton).

@@ -1,0 +1,23 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    match /documents/{userId}/{fileName} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.size < 25 * 1024 * 1024
+        && request.resource.contentType.matches(
+          'application/pdf|application/msword|application/vnd.openxmlformats-officedocument.wordprocessingml.document|application/vnd.ms-powerpoint|application/vnd.openxmlformats-officedocument.presentationml.presentation|image/png|image/jpeg'
+        );
+      allow delete: if signedIn() && request.auth.uid == userId;
+    }
+
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

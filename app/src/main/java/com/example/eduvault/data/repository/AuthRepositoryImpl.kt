@@ -244,8 +244,11 @@ class AuthRepositoryImpl @Inject constructor(
                     else -> com.example.eduvault.feature.quiz.ui.Difficulty.MEDIUM
                 }
                 
-                val subject = if (quizID.contains("Marketing", ignoreCase = true)) "MKT301 - Marketing" else "EC0201 - Kinh tế vi mô"
-                val title = "Đề luyện tập: ${quizID}"
+                val subject = doc.getString("subject")
+                    ?: doc.getString("documentID")
+                    ?: (if (quizID.contains("Marketing", ignoreCase = true)) "MKT301 - Marketing" else "EC0201 - Kinh tế vi mô")
+                val title = doc.getString("title")
+                    ?: "Đề luyện tập: ${quizID}"
                 
                 com.example.eduvault.feature.quiz.ui.QuizSet(
                     id = quizID,
@@ -511,7 +514,67 @@ class AuthRepositoryImpl @Inject constructor(
         firebaseAuth.signOut()
     }
 
-    // ─── Update Profile ───────────────────────────────────────────────────────
+    override suspend fun changePassword(currentPassword: String, newPassword: String): Result<Unit> {
+        val firebaseUser = firebaseAuth.currentUser
+            ?: return Result.failure(Exception("Người dùng chưa đăng nhập."))
+        val email = firebaseUser.email
+            ?: return Result.failure(Exception("Không tìm thấy email của tài khoản."))
+        return try {
+            val credential = com.google.firebase.auth.EmailAuthProvider.getCredential(email, currentPassword)
+            firebaseUser.reauthenticate(credential).await()
+            firebaseUser.updatePassword(newPassword).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            val rawMsg = e.message ?: ""
+            val errorMsg = when {
+                rawMsg.contains("INVALID_LOGIN_CREDENTIALS", ignoreCase = true) ||
+                rawMsg.contains("wrong-password", ignoreCase = true) ||
+                rawMsg.contains("WRONG_PASSWORD", ignoreCase = true) ->
+                    "Mật khẩu hiện tại không chính xác."
+                rawMsg.contains("weak-password", ignoreCase = true) ||
+                rawMsg.contains("WEAK_PASSWORD", ignoreCase = true) ->
+                    "Mật khẩu mới quá yếu. Mật khẩu phải có ít nhất 6 ký tự."
+                else -> mapFirebaseError(rawMsg)
+            }
+            Result.failure(Exception(errorMsg))
+        }
+    }
+
+    override suspend fun saveQuizSet(
+        quizSet: com.example.eduvault.feature.quiz.ui.QuizSet,
+        questions: List<com.example.eduvault.feature.quiz.ui.QuizQuestion>
+    ): Result<Unit> {
+        val firebaseUser = firebaseAuth.currentUser
+            ?: return Result.failure(Exception("Người dùng chưa đăng nhập."))
+        return try {
+            val alphabet = listOf("A", "B", "C", "D")
+            val quizMap = hashMapOf(
+                "quizID" to quizSet.id,
+                "authorId" to firebaseUser.uid,
+                "subject" to quizSet.subject,
+                "title" to quizSet.title,
+                "difficulty" to when (quizSet.difficulty) {
+                    com.example.eduvault.feature.quiz.ui.Difficulty.EASY -> "easy"
+                    com.example.eduvault.feature.quiz.ui.Difficulty.HARD -> "hard"
+                    else -> "medium"
+                },
+                "questionCount" to quizSet.questionCount,
+                "questions" to questions.map { q ->
+                    val correctIdx = alphabet.indexOf(q.correctOption).coerceAtLeast(0)
+                    hashMapOf(
+                        "content" to q.text,
+                        "correctAnswer" to correctIdx,
+                        "explanation" to q.explanation,
+                        "options" to q.options.map { it.text }
+                    )
+                }
+            )
+            firestore.collection("quizzes").document(quizSet.id).set(quizMap).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(Exception(mapFirebaseError(e.message)))
+        }
+    }
 
     override suspend fun updateProfile(
         fullName: String,
@@ -551,28 +614,33 @@ class AuthRepositoryImpl @Inject constructor(
      * Lưu [User] vào Firestore collection "users".
      */
     private suspend fun saveUserToFirestore(user: User) {
-        val userMap = hashMapOf(
-            "uid" to user.uid,
-            "name" to user.fullName,
-            "email" to user.email,
-            "university" to user.university,
-            "avatarUrl" to user.avatarUrl,
-            "documentCredits" to user.documentCredits,
-            "uploadCount" to user.uploadCount,
-            "createdAt" to com.google.firebase.Timestamp(java.util.Date(user.createdAt)),
-            "role" to user.role,
-            "isBlocked" to user.isBlocked,
-            "unlockedDocuments" to user.unlockedDocuments,
-            "quizCount" to user.quizCount,
-            "quizAverageScore" to user.quizAverageScore,
-            "totalXp" to user.totalXp,
-            "savedDocuments" to user.savedDocuments
-        )
-        firestore
-            .collection(USERS_COLLECTION)
-            .document(user.uid)
-            .set(userMap)
-            .await()
+        try {
+            val userMap = hashMapOf(
+                "uid" to user.uid,
+                "name" to user.fullName,
+                "email" to user.email,
+                "university" to user.university,
+                "avatarUrl" to user.avatarUrl,
+                "documentCredits" to user.documentCredits,
+                "uploadCount" to user.uploadCount,
+                "createdAt" to com.google.firebase.Timestamp(java.util.Date(user.createdAt)),
+                "role" to user.role,
+                "isBlocked" to user.isBlocked,
+                "unlockedDocuments" to user.unlockedDocuments,
+                "quizCount" to user.quizCount,
+                "quizAverageScore" to user.quizAverageScore,
+                "totalXp" to user.totalXp,
+                "savedDocuments" to user.savedDocuments
+            )
+            firestore
+                .collection(USERS_COLLECTION)
+                .document(user.uid)
+                .set(userMap)
+                .await()
+        } catch (e: Exception) {
+            android.util.Log.e("AuthRepository", "saveUserToFirestore failed for uid=${user.uid}: ${e.localizedMessage}")
+            throw e  // Re-throw so callers can handle (e.g. rollback auth account)
+        }
     }
 
     /**

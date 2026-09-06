@@ -73,6 +73,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.util.Locale
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.eduvault.core.theme.ColorAmber
 import com.example.eduvault.core.theme.ColorAmberDark
@@ -188,7 +189,48 @@ private fun QuizDashboard(
         // Progress Stats Grid
         QuizProgressGrid(progress = uiState.progress)
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // ─── Available Quizzes Section ───────────────────────────────────────────
+        SectionTitle(title = "Bộ đề ôn luyện trắc nghiệm")
+        Spacer(modifier = Modifier.height(10.dp))
+
+        if (uiState.quizSets.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(110.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.White)
+                    .border(1.5.dp, ColorBorder, RoundedCornerShape(16.dp))
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Chưa có đề luyện tập nào.\nHãy tạo đề thi AI từ tài liệu của bạn!",
+                    fontFamily = DmSansFamily,
+                    fontSize = 12.sp,
+                    color = ColorTextOnLightSecondary,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 18.sp
+                )
+            }
+        } else {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(bottom = 8.dp)
+            ) {
+                items(uiState.quizSets) { quizSet ->
+                    QuizSetCard(
+                        quizSet = quizSet,
+                        onPlayClick = { viewModel.startQuiz(quizSet) },
+                        modifier = Modifier.width(160.dp)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
 
         // Leaderboard List
         SectionTitle(title = "Bảng xếp hạng tuần")
@@ -295,10 +337,9 @@ private fun QuizProgressGrid(progress: QuizProgress) {
     ) {
         ProgressCard(
             emoji = "📊",
-            value = "${progress.avgScore}/10",
+            value = if (progress.avgScore > 0f) String.format(Locale.ROOT, "%.1f", progress.avgScore) else "-",
             label = "Điểm trung bình",
-            trend = "+5.2% tuần này",
-            trendColor = ColorForest,
+            fraction = (progress.avgScore / 10f).coerceIn(0f, 1f),
             bgCircleColor = ColorForest.copy(alpha = 0.08f),
             modifier = Modifier.weight(1f)
         )
@@ -306,8 +347,7 @@ private fun QuizProgressGrid(progress: QuizProgress) {
             emoji = "🧩",
             value = "${progress.completedCount}",
             label = "Đề đã hoàn thành",
-            trend = "+3 đề mới",
-            trendColor = ColorForest,
+            fraction = if (progress.completedCount > 0) 1f else 0f,
             bgCircleColor = ColorAmber.copy(alpha = 0.08f),
             modifier = Modifier.weight(1f)
         )
@@ -315,8 +355,7 @@ private fun QuizProgressGrid(progress: QuizProgress) {
             emoji = "🎯",
             value = "${progress.completionRate}%",
             label = "Tỷ lệ chính xác",
-            trend = "+1.8% cải thiện",
-            trendColor = ColorForest,
+            fraction = (progress.completionRate / 100f).coerceIn(0f, 1f),
             bgCircleColor = Color(0xFF9F7AEA).copy(alpha = 0.08f),
             modifier = Modifier.weight(1f)
         )
@@ -328,8 +367,7 @@ private fun ProgressCard(
     emoji: String,
     value: String,
     label: String,
-    trend: String,
-    trendColor: Color,
+    fraction: Float,
     bgCircleColor: Color,
     modifier: Modifier = Modifier
 ) {
@@ -341,39 +379,14 @@ private fun ProgressCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(bgCircleColor),
+                contentAlignment = Alignment.Center
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(34.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(bgCircleColor),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(text = emoji, fontSize = 16.sp)
-                }
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Outlined.TrendingUp,
-                        contentDescription = null,
-                        tint = trendColor,
-                        modifier = Modifier.size(10.dp)
-                    )
-                    Text(
-                        text = trend.split(" ").first(),
-                        fontFamily = JetBrainsMonoFamily,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = trendColor
-                    )
-                }
+                Text(text = emoji, fontSize = 16.sp)
             }
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -382,26 +395,21 @@ private fun ProgressCard(
                 text = value,
                 fontFamily = JetBrainsMonoFamily,
                 fontWeight = FontWeight.Bold,
-                fontSize = 20.sp,
-                color = ColorInk,
-                lineHeight = 24.sp
+                fontSize = 16.sp,
+                color = ColorInk
             )
-
-            Spacer(modifier = Modifier.height(2.dp))
 
             Text(
                 text = label,
                 fontFamily = DmSansFamily,
-                fontSize = 10.5.sp,
+                fontSize = 9.5.sp,
                 color = ColorTextOnLightSecondary,
-                lineHeight = 13.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                lineHeight = 13.sp
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Mini progress bar decoration
+            // Mini progress bar — width reflects actual fraction
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -730,7 +738,7 @@ private fun LeaderboardCard(leaderboard: List<LeaderboardUser>) {
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = user.name.first().toString(),
+                            text = user.name.firstOrNull()?.toString() ?: "?",
                             fontFamily = DmSansFamily,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
@@ -909,18 +917,6 @@ private fun QuizPlayer(
                             fontSize = 16.sp,
                             color = ColorInk,
                             lineHeight = 22.sp
-                        )
-                    }
-
-                    if (currentQuestion.hint.isNotEmpty() && !uiState.isAnswerLocked) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = currentQuestion.hint,
-                            fontFamily = DmSansFamily,
-                            fontStyle = FontStyle.Italic,
-                            fontSize = 12.sp,
-                            color = ColorTextOnLightSecondary,
-                            lineHeight = 16.sp
                         )
                     }
                 }
@@ -1239,6 +1235,7 @@ private fun QuizPlayerActionBar(
             .fillMaxWidth()
             .background(Color.White)
             .border(1.dp, ColorBorder)
+            .navigationBarsPadding()
             .padding(horizontal = 14.dp, vertical = 12.dp)
     ) {
         // Question Dots progress indicators

@@ -30,6 +30,8 @@ class FakeAuthRepository : AuthRepository {
     var updateUserQuizStatsResult: Result<User> = Result.success(User(uid = "test-uid", fullName = "Test User", email = "test@example.com"))
     var toggleSaveDocumentResult: Result<User> = Result.success(User(uid = "test-uid", fullName = "Test User", email = "test@example.com"))
     var loginWithGoogleResult: Result<User> = Result.success(User(uid = "test-uid", fullName = "Test User", email = "test@example.com"))
+    var changePasswordResult: Result<Unit> = Result.success(Unit)
+    var saveQuizSetResult: Result<Unit> = Result.success(Unit)
 
     override suspend fun login(email: String, password: String): Result<User> = loginResult
 
@@ -71,6 +73,10 @@ class FakeAuthRepository : AuthRepository {
     override suspend fun toggleSaveDocument(docId: String): Result<User> = toggleSaveDocumentResult
 
     override suspend fun loginWithGoogle(idToken: String): Result<User> = loginWithGoogleResult
+
+    override suspend fun changePassword(currentPassword: String, newPassword: String): Result<Unit> = changePasswordResult
+
+    override suspend fun saveQuizSet(quizSet: QuizSet, questions: List<QuizQuestion>): Result<Unit> = saveQuizSetResult
 
     override fun logout() {
         // No-op

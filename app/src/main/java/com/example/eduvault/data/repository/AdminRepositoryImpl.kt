@@ -4,6 +4,7 @@ import com.example.eduvault.domain.repository.AdminRepository
 import com.example.eduvault.feature.library.ui.LibraryDoc
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.functions.FirebaseFunctions
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -11,7 +12,8 @@ import javax.inject.Singleton
 @Singleton
 class AdminRepositoryImpl @Inject constructor(
     private val firestore: FirebaseFirestore,
-    private val storage: FirebaseStorage
+    private val storage: FirebaseStorage,
+    private val functions: FirebaseFunctions
 ) : AdminRepository {
 
     override suspend fun deleteDocument(docId: String): Result<Unit> {
@@ -29,7 +31,7 @@ class AdminRepositoryImpl @Inject constructor(
                     }
                 }
             }
-            firestore.collection("documents").document(docId).delete().await()
+            functions.getHttpsCallable("deleteDocument").call(mapOf("documentId" to docId)).await()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(Exception("Xóa tài liệu thất bại: ${e.localizedMessage}"))
@@ -91,8 +93,7 @@ class AdminRepositoryImpl @Inject constructor(
 
     override suspend fun approveDocument(docId: String): Result<Unit> {
         return try {
-            firestore.collection("documents").document(docId)
-                .update("status", "APPROVED").await()
+            functions.getHttpsCallable("approveDocument").call(mapOf("documentId" to docId)).await()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(Exception("Phê duyệt tài liệu thất bại: ${e.localizedMessage}"))
@@ -207,8 +208,8 @@ class AdminRepositoryImpl @Inject constructor(
 
     override suspend fun updateUserBlockStatus(uid: String, isBlocked: Boolean): Result<Unit> {
         return try {
-            firestore.collection("users").document(uid)
-                .update("isBlocked", isBlocked).await()
+            functions.getHttpsCallable("setUserBlocked")
+                .call(mapOf("userId" to uid, "isBlocked" to isBlocked)).await()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(Exception("Cập nhật trạng thái khóa thất bại: ${e.localizedMessage}"))

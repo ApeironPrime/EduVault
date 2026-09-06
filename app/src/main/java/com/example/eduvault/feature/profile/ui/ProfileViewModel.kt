@@ -155,6 +155,48 @@ class ProfileViewModel @Inject constructor(
     }
 
     /**
+     * Thay đổi mật khẩu tài khoản
+     */
+    fun onChangePassword(current: String, new: String, onFinished: () -> Unit) {
+        if (current.isBlank() || new.isBlank()) {
+            _uiState.update { it.copy(changePasswordError = "Vui lòng nhập đầy đủ thông tin.") }
+            return
+        }
+        if (new.length < 6) {
+            _uiState.update { it.copy(changePasswordError = "Mật khẩu mới phải có ít nhất 6 ký tự.") }
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(isChangingPassword = true, changePasswordError = null, changePasswordSuccess = null) }
+            authRepository.changePassword(current.trim(), new.trim())
+                .onSuccess {
+                    _uiState.update {
+                        it.copy(
+                            isChangingPassword = false,
+                            changePasswordSuccess = "Đổi mật khẩu thành công!"
+                        )
+                    }
+                    onFinished()
+                }
+                .onFailure { error ->
+                    _uiState.update {
+                        it.copy(
+                            isChangingPassword = false,
+                            changePasswordError = error.message ?: "Đổi mật khẩu thất bại."
+                        )
+                    }
+                }
+        }
+    }
+
+    /**
+     * Xóa thông báo lỗi/thành công của chức năng đổi mật khẩu
+     */
+    fun clearChangePasswordMessages() {
+        _uiState.update { it.copy(changePasswordError = null, changePasswordSuccess = null) }
+    }
+
+    /**
      * Đăng xuất tài khoản
      */
     fun logout(onSuccess: () -> Unit) {

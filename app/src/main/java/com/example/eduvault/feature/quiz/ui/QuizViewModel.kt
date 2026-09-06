@@ -11,15 +11,18 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import com.example.eduvault.domain.repository.AuthRepository
+import com.example.eduvault.domain.usecase.GetPublishedDocumentsUseCase
 import com.example.eduvault.domain.repository.DocumentRepository
 import com.example.eduvault.domain.repository.AiRepository
 import com.example.eduvault.domain.repository.NotificationRepository
 import com.example.eduvault.domain.model.NotificationType
 import javax.inject.Inject
+import com.example.eduvault.feature.library.ui.toLibraryDoc
 
 @HiltViewModel
 class QuizViewModel @Inject constructor(
     private val authRepository: AuthRepository,
+    private val getPublishedDocuments: GetPublishedDocumentsUseCase,
     private val documentRepository: DocumentRepository,
     private val aiRepository: AiRepository,
     private val notificationRepository: NotificationRepository
@@ -37,26 +40,8 @@ class QuizViewModel @Inject constructor(
 
     private var timerJob: Job? = null
 
-    // ─── High Fidelity Vietnamese Mock Data matching user screenshots ──────────
-    private val allMockQuizSets = listOf(
-        QuizSet("1", "EC0201 - Kinh tế vi mô", "Kinh tế vi mô — Trắc nghiệm chương Cung Cầu & Thị trường", Difficulty.EASY, 5, "1.2k", isNew = true, bgIndex = 0),
-        QuizSet("2", "MKT301 - Marketing", "Nguyên lý Marketing — Bộ câu hỏi ôn luyện lý thuyết cốt lõi", Difficulty.MEDIUM, 5, "800", bgIndex = 1),
-        QuizSet("3", "STAT202 - Thống kê", "Thống kê xã hội học — Ôn tập phân phối xác suất & mẫu số", Difficulty.HARD, 5, "450", bgIndex = 2),
-        QuizSet("4", "LAW101 - Luật đại cương", "Pháp luật đại cương — Hệ thống văn bản & bộ máy nhà nước", Difficulty.EASY, 5, "1.5k", bgIndex = 3),
-        QuizSet("5", "FIN301 - Tài chính", "Tài chính doanh nghiệp — Bài tập giá trị thời gian của tiền", Difficulty.MEDIUM, 5, "620", isNew = true, bgIndex = 4),
-        QuizSet("6", "BIO102 - Vi sinh học", "Vi sinh học đại cương — Cấu trúc tế bào & trao đổi chất", Difficulty.MEDIUM, 5, "280", bgIndex = 5)
-    )
 
-    private val mockLeaderboard = listOf(
-        LeaderboardUser(1, "Nguyễn Văn Anh", "Đại học Bách Khoa", 12450),
-        LeaderboardUser(2, "Trần Thị Bình", "Đại học Kinh tế Quốc dân", 11200),
-        LeaderboardUser(3, "Lê Hoàng Cường", "Đại học Ngoại thương", 9850),
-        LeaderboardUser(4, "Phạm Minh Đức", "Đại học FPT", 9100),
-        LeaderboardUser(5, "Đỗ Thanh Hải", "Đại học Quốc gia", 8600),
-        LeaderboardUser(12, "Gamer (Tôi)", "Đại học Công nghệ thông tin", 7200, isMe = true)
-    )
 
-    // Bộ câu hỏi cho môn Kinh tế vi mô (id = "1")
     private val microQuestions = listOf(
         QuizQuestion(
             id = "q1_1",
@@ -479,8 +464,8 @@ class QuizViewModel @Inject constructor(
 
     fun loadAvailableDocuments() {
         viewModelScope.launch {
-            documentRepository.getDocuments().onSuccess { firestoreDocs ->
-                _availableDocs.value = firestoreDocs
+            getPublishedDocuments().onSuccess { firestoreDocs ->
+                _availableDocs.value = firestoreDocs.map { it.toLibraryDoc() }
             }.onFailure {
                 _availableDocs.value = emptyList()
             }
@@ -709,10 +694,8 @@ class QuizViewModel @Inject constructor(
                     )
                 }
 
-                // Thêm vào danh sách chơi lại và lưu cache tạm thời của phiên
+                // Lưu cache câu hỏi tạm thời của phiên để hỗ trợ chơi lại
                 localQuestionsCache[customSet.id] = generatedQuestions
-                allQuizSetsList.add(0, customSet)
-                _uiState.update { state -> state.copy(quizSets = allQuizSetsList.toList()) }
 
                 startTimer()
             }.onFailure { e ->
@@ -729,25 +712,22 @@ class QuizViewModel @Inject constructor(
         _uiState.update { it.copy(isLoading = true) }
         
         viewModelScope.launch {
-            val fetchedQuestions = localQuestionsCache[quizSet.id] ?: authRepository.getQuizQuestions(quizSet.id).getOrElse {
-                val rawMocks = when {
-                    quizSet.subject.contains("Marketing", ignoreCase = true) || quizSet.id == "2" -> marketingQuestions
-                    quizSet.subject.contains("Thống kê", ignoreCase = true) || quizSet.id == "3" -> statisticsQuestions
-                    quizSet.subject.contains("Luật", ignoreCase = true) || quizSet.id == "4" -> lawQuestions
-                    quizSet.subject.contains("Tài chính", ignoreCase = true) || quizSet.id == "5" -> financeQuestions
-                    quizSet.subject.contains("Vi sinh", ignoreCase = true) || quizSet.id == "6" -> biologyQuestions
-                    else -> microQuestions
-                }
-                rawMocks
+            val fetchedQuestions = localQuestionsCache[quizSet.id]
+                ?: authRepository.getQuizQuestions(quizSet.id).getOrElse { emptyList() }
+
+            if (fetchedQuestions.isEmpty()) {
+                _uiState.update { it.copy(isLoading = false) }
+                return@launch
             }
 
             val finalQuestions = mutableListOf<QuizQuestion>()
             val count = quizSet.questionCount
-            while (finalQuestions.size < count && fetchedQuestions.isNotEmpty()) {
-                val remaining = count - finalQuestions.size
-                finalQuestions.addAll(fetchedQuestions.take(remaining).mapIndexed { idx, q ->
-                    q.copy(id = "${q.id}_custom_${finalQuestions.size + idx}")
-                })
+            // Cycle through fetchedQuestions to fill up to 'count' questions
+            var cycleIndex = 0
+            while (finalQuestions.size < count) {
+                val q = fetchedQuestions[cycleIndex % fetchedQuestions.size]
+                finalQuestions.add(q.copy(id = "${q.id}_${finalQuestions.size}"))
+                cycleIndex++
             }
 
             _uiState.update {

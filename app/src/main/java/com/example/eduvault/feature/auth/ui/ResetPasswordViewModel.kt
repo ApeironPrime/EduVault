@@ -88,7 +88,12 @@ class ResetPasswordViewModel @Inject constructor(
             } else {
                 // Chế độ Demo
                 delay(1500)
-                _uiState.update { it.copy(isLoading = false, isResetSuccess = true) }
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = "Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn. Vui lòng gửi lại yêu cầu."
+                    )
+                }
             }
         }
     }

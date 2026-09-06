@@ -1,0 +1,85 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && request.auth.token.keys().hasAll(['admin'])
+        && request.auth.token.admin == true;
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId)
+        && request.resource.data.uid == userId
+        && request.resource.data.role == 'user'
+        && request.resource.data.isBlocked == false
+        && request.resource.data.documentCredits in [1, 5]
+        && request.resource.data.uploadCount == 0
+        && request.resource.data.totalXp == 0
+        && request.resource.data.quizCount == 0;
+      // Client-owned profile fields only. Credits, XP, roles, block state and
+      // unlocks must be changed by a privileged backend in the next phase.
+      allow update: if isOwner(userId)
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['name', 'fullName', 'university', 'avatarUrl', 'savedDocuments']);
+    }
+
+    match /documents/{documentId} {
+      allow get: if signedIn()
+        && (resource.data.status == 'APPROVED'
+          || resource.data.authorId == request.auth.uid
+          || isAdmin());
+      // Queries must include status == APPROVED.
+      allow list: if isAdmin() || (signedIn() && resource.data.status == 'APPROVED');
+      // User submissions stay pending. Approval, reports and AI content are
+      // server/admin responsibilities; the client cannot publish its own work.
+      allow create: if signedIn()
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.status == 'PENDING'
+        && request.resource.data.reportCount == 0;
+      allow delete: if signedIn()
+        && resource.data.authorId == request.auth.uid
+        && resource.data.status == 'PENDING';
+    }
+
+    match /notes/{userId}/documents/{noteId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    match /notifications/{notificationId} {
+      allow get, list: if signedIn() && resource.data.userId == request.auth.uid;
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if signedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']);
+      allow delete: if signedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    match /categories/{categoryId} {
+      allow read: if signedIn();
+      // Category administration is server-side; Admin SDK bypasses Rules.
+      allow write: if false;
+    }
+
+    match /quizzes/{quizId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.authorId == request.auth.uid;
+      allow update, delete: if signedIn() && resource.data.authorId == request.auth.uid;
+    }
+
+    // Deny every collection not explicitly modeled above.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

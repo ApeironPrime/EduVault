@@ -16,7 +16,7 @@ import com.example.eduvault.domain.repository.CategoryRepository
 import com.example.eduvault.domain.repository.AiRepository
 import com.example.eduvault.domain.repository.NotificationRepository
 import com.example.eduvault.domain.model.NotificationType
-import com.example.eduvault.core.mock.MockDataProvider
+import com.example.eduvault.feature.library.ui.toLibraryDoc
 
 private const val PAGE_SIZE = 6
 
@@ -37,9 +37,6 @@ class LibraryViewModel @Inject constructor(
 
     private val allDocsList = mutableListOf<LibraryDoc>()
 
-    // ─── High fidelity mock data from shared MockDataProvider ────────────────────
-    private val allMockDocs = MockDataProvider.allMockDocs
-
     init {
         loadDocuments()
         loadCategories()
@@ -50,7 +47,7 @@ class LibraryViewModel @Inject constructor(
         viewModelScope.launch {
             documentRepository.getDocuments().onSuccess { firestoreDocs ->
                 allDocsList.clear()
-                allDocsList.addAll(firestoreDocs)
+                allDocsList.addAll(firestoreDocs.map { it.toLibraryDoc() })
                 syncSavedStatusAndFilter()
             }.onFailure {
                 allDocsList.clear()

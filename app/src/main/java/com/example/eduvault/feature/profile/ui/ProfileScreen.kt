@@ -13,6 +13,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -43,6 +44,13 @@ import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.Save
 import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material3.IconButton
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -144,11 +152,13 @@ fun ProfileContent(
                     .verticalScroll(scrollState)
             ) {
                 // Header Profile Info Banner
-                ProfileHeaderSection(
-                    uiState = uiState,
-                    paddingValues = paddingValues,
-                    onEditClick = viewModel::onStartEditing
-                )
+                if (!uiState.isEditing) {
+                    ProfileHeaderSection(
+                        uiState = uiState,
+                        paddingValues = paddingValues,
+                        onEditClick = viewModel::onStartEditing
+                    )
+                }
 
                 // Message Alerts (Success/Error)
                 AnimatedVisibility(visible = uiState.successMessage != null || uiState.errorMessage != null) {
@@ -560,55 +570,7 @@ private fun ProfileViewDetails(
                     onClick = onEditClick
                 )
 
-                // Mục 2: Nhắc nhở ôn thi
-                var showReminderDialog by remember { mutableStateOf(false) }
-                MenuSettingsItem(
-                    icon = Icons.Outlined.Notifications,
-                    label = "Nhắc nhở ôn thi & Luyện tập",
-                    onClick = { showReminderDialog = true }
-                )
-                if (showReminderDialog) {
-                    AlertDialog(
-                        onDismissRequest = { showReminderDialog = false },
-                        icon = { Text(text = "🔔", fontSize = 28.sp) },
-                        title = {
-                            Text(
-                                text = "Nhắc nhở ôn thi",
-                                fontFamily = PlayfairDisplayFamily,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 17.sp
-                            )
-                        },
-                        text = {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(
-                                    text = "Tính năng nhắc nhở thông minh sẽ được ra mắt trong phiên bản tiếp theo!",
-                                    fontFamily = DmSansFamily,
-                                    fontSize = 13.sp,
-                                    color = ColorTextOnLightSecondary,
-                                    lineHeight = 20.sp
-                                )
-                                Text(
-                                    text = "💡 Trong thời gian chờ, bạn có thể tự tạo lịch ôn tập cá nhân bằng cách hoàn thành một Quiz mội ngày để củng cố kiến thức!",
-                                    fontFamily = DmSansFamily,
-                                    fontSize = 12.sp,
-                                    color = ColorAmberDark,
-                                    lineHeight = 18.sp
-                                )
-                            }
-                        },
-                        confirmButton = {
-                            TextButton(onClick = { showReminderDialog = false }) {
-                                Text(
-                                    text = "Đã hiểu",
-                                    fontFamily = DmSansFamily,
-                                    fontWeight = FontWeight.Bold,
-                                    color = ColorAmberDark
-                                )
-                            }
-                        }
-                    )
-                }
+
 
                 // Mục 3: Trợ giúp & Đóng góp phản hồi
                 var showHelpDialog by remember { mutableStateOf(false) }
@@ -800,242 +762,482 @@ private fun ProfileEditForm(
     onCancelClick: () -> Unit
 ) {
     val context = LocalContext.current
-    
-    // System Image Picker launcher resultcontract
+
+    var showChangePasswordDialog by remember { mutableStateOf(false) }
+
+    if (showChangePasswordDialog) {
+        ChangePasswordDialog(
+            uiState = uiState,
+            viewModel = viewModel,
+            onDismiss = { showChangePasswordDialog = false }
+        )
+    }
+
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        if (uri != null) {
-            viewModel.handleCustomAvatarPicked(context, uri)
-        }
+        if (uri != null) viewModel.handleCustomAvatarPicked(context, uri)
     }
 
-    Column(modifier = Modifier.padding(16.dp)) {
-        Text(
-            text = "Thay đổi ảnh đại diện",
-            fontFamily = PlayfairDisplayFamily,
-            fontWeight = FontWeight.Bold,
-            fontSize = 16.sp,
-            color = ColorInk,
-            modifier = Modifier.padding(bottom = 10.dp)
-        )
+    val quickAvatars = listOf(
+        "emoji:👨‍🎓", "emoji:👩‍🎓", "emoji:🧑‍💻", "emoji:👩‍💻",
+        "emoji:🦊", "emoji:🦁", "emoji:🦄", "emoji:🐼",
+        "emoji:🐯", "emoji:🦋", "emoji:🐉", "emoji:🌟"
+    )
 
-        // Custom device Picker Button
-        Card(
-            shape = RoundedCornerShape(14.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            border = androidx.compose.foundation.BorderStroke(1.5.dp, ColorBorder),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    Column {
+        // ── Dark hero section with avatar preview ──────────────────────────────
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { launcher.launch("image/*") }
-                .padding(bottom = 14.dp)
-        ) {
-            Row(
-                modifier = Modifier.padding(14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.PhotoCamera,
-                    contentDescription = null,
-                    tint = ColorAmberDark,
-                    modifier = Modifier.size(18.dp)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            ColorInk,
+                            Color(0xFF1A1A2E)
+                        )
+                    )
                 )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "Tải ảnh đại diện từ thiết bị",
-                    fontFamily = DmSansFamily,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp,
-                    color = ColorAmberDark
-                )
-            }
-        }
-
-        // Quick presets Grid
-        Text(
-            text = "Hoặc chọn nhanh từ bộ sưu tập nhanh:",
-            fontFamily = DmSansFamily,
-            fontSize = 11.5.sp,
-            color = ColorTextOnLightSecondary,
-            modifier = Modifier.padding(bottom = 10.dp)
-        )
-
-        val quickAvatars = listOf(
-            "emoji:👨‍🎓", "emoji:👩‍🎓", "emoji:🧑‍💻", "emoji:👩‍💻",
-            "emoji:🦊", "emoji:🦁", "emoji:🦄", "emoji:🐼"
-        )
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 20.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
+                .padding(vertical = 28.dp),
+            contentAlignment = Alignment.Center
         ) {
-            quickAvatars.chunked(4).forEach { colItems ->
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    colItems.forEach { avatar ->
-                        val isSelected = uiState.editAvatarUrl == avatar
-                        val emoji = avatar.removePrefix("emoji:")
-
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (isSelected) ColorAmber.copy(alpha = 0.15f) else ColorCream
-                                )
-                                .border(
-                                    2.dp,
-                                    if (isSelected) ColorAmber else ColorBorder,
-                                    CircleShape
-                                )
-                                .clickable { viewModel.onAvatarSelected(avatar) },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(text = emoji, fontSize = 22.sp)
-                        }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                // Live avatar preview (shows currently selected)
+                Box(contentAlignment = Alignment.BottomEnd) {
+                    ProfileAvatar(
+                        avatarUrl = uiState.editAvatarUrl.ifBlank { uiState.user?.avatarUrl ?: "" },
+                        fullName = uiState.editFullName.ifBlank { uiState.user?.fullName ?: "" },
+                        modifier = Modifier.size(96.dp),
+                        borderWidth = 3.dp,
+                        emojiSize = 46.sp,
+                        initialSize = 40.sp
+                    )
+                    // Camera badge
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(ColorAmber)
+                            .border(2.dp, ColorInk, CircleShape)
+                            .clickable { launcher.launch("image/*") },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.PhotoCamera,
+                            contentDescription = "Chọn ảnh",
+                            tint = ColorInk,
+                            modifier = Modifier.size(14.dp)
+                        )
                     }
                 }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = uiState.editFullName.ifBlank { uiState.user?.fullName ?: "Người dùng" },
+                    fontFamily = PlayfairDisplayFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = ColorTextOnDark
+                )
+                Text(
+                    text = uiState.user?.email ?: "",
+                    fontFamily = DmSansFamily,
+                    fontSize = 12.sp,
+                    color = ColorTextOnDarkSecondary
+                )
             }
         }
 
-        // Info input Form
-        Text(
-            text = "Thông tin cá nhân",
-            fontFamily = PlayfairDisplayFamily,
-            fontWeight = FontWeight.Bold,
-            fontSize = 16.sp,
-            color = ColorInk,
-            modifier = Modifier.padding(bottom = 12.dp)
-        )
+        // ── Body ───────────────────────────────────────────────────────────────
+        Column(modifier = Modifier.padding(horizontal = 18.dp)) {
 
-        // Email field (READ ONLY)
-        OutlinedTextField(
-            value = uiState.user?.email ?: "",
-            onValueChange = {},
-            enabled = false,
-            label = { Text("Đăng nhập email (Không thể sửa)", fontFamily = DmSansFamily) },
-            leadingIcon = { Icon(imageVector = Icons.Outlined.Email, contentDescription = null) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 12.dp),
-            shape = RoundedCornerShape(11.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                disabledTextColor = ColorTextOnLightSecondary,
-                disabledBorderColor = ColorBorder,
-                disabledContainerColor = ColorCream
-            )
-        )
+            Spacer(modifier = Modifier.height(22.dp))
 
-        // Full name field
-        OutlinedTextField(
-            value = uiState.editFullName,
-            onValueChange = viewModel::onFullNameChange,
-            label = { Text("Họ và tên người dùng", fontFamily = DmSansFamily) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 12.dp),
-            shape = RoundedCornerShape(11.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = ColorAmber,
-                unfocusedBorderColor = ColorBorder,
-                focusedLabelColor = ColorAmberDark,
-                unfocusedLabelColor = ColorTextOnLightSecondary
-            )
-        )
-
-        // University field
-        OutlinedTextField(
-            value = uiState.editUniversity,
-            onValueChange = viewModel::onUniversityChange,
-            label = { Text("Trường đại học học tập", fontFamily = DmSansFamily) },
-            leadingIcon = { Icon(imageVector = Icons.Outlined.School, contentDescription = null) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 20.dp),
-            shape = RoundedCornerShape(11.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = ColorAmber,
-                unfocusedBorderColor = ColorBorder,
-                focusedLabelColor = ColorAmberDark,
-                unfocusedLabelColor = ColorTextOnLightSecondary
-            )
-        )
-
-        // Save & Cancel Actions Row
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            // Cancel button
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(10.dp))
-                    .border(1.5.dp, ColorBorder, RoundedCornerShape(10.dp))
-                    .background(Color.White)
-                    .clickable(enabled = !uiState.isSaving) { onCancelClick() }
-                    .padding(vertical = 11.dp),
-                contentAlignment = Alignment.Center
+            // ── Avatar section label ─────────────────────────────────────────
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 14.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Cancel,
-                        contentDescription = null,
-                        tint = ColorTextOnLightSecondary,
-                        modifier = Modifier.size(14.dp)
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(ColorAmber.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center
+                ) { Text("🖼️", fontSize = 15.sp) }
+                Column {
+                    Text(
+                        text = "Ảnh đại diện",
+                        fontFamily = DmSansFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = ColorInk
                     )
                     Text(
-                        text = "Hủy bỏ",
+                        text = "Chọn emoji hoặc ảnh từ thiết bị",
                         fontFamily = DmSansFamily,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 13.5.sp,
+                        fontSize = 11.sp,
                         color = ColorTextOnLightSecondary
                     )
                 }
             }
 
-            // Save button
-            Box(
+            // ── Photo from device button (refined) ───────────────────────────
+            Row(
                 modifier = Modifier
-                    .weight(1.2f)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (uiState.isSaving) ColorAmber.copy(alpha = 0.5f) else ColorAmber)
-                    .clickable(enabled = !uiState.isSaving) { onSaveClick() }
-                    .padding(vertical = 11.dp),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFFFFFAF0))
+                    .border(1.5.dp, ColorAmber.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                    .clickable { launcher.launch("image/*") }
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                if (uiState.isSaving) {
-                    CircularProgressIndicator(color = ColorInk, modifier = Modifier.size(16.dp))
-                } else {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Save,
-                            contentDescription = null,
-                            tint = ColorInk,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Text(
-                            text = "Lưu thay đổi",
-                            fontFamily = DmSansFamily,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.5.sp,
-                            color = ColorInk
-                        )
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(ColorAmber.copy(alpha = 0.18f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.PhotoCamera,
+                        contentDescription = null,
+                        tint = ColorAmberDark,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Tải ảnh từ thiết bị",
+                        fontFamily = DmSansFamily,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp,
+                        color = ColorAmberDark
+                    )
+                    Text(
+                        text = "JPG, PNG — hiển thị tức thì",
+                        fontFamily = DmSansFamily,
+                        fontSize = 10.5.sp,
+                        color = ColorTextOnLightSecondary
+                    )
+                }
+                Text("→", fontSize = 16.sp, color = ColorAmberDark)
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // ── Emoji grid ───────────────────────────────────────────────────
+            Text(
+                text = "Hoặc chọn nhanh:",
+                fontFamily = DmSansFamily,
+                fontSize = 11.5.sp,
+                color = ColorTextOnLightSecondary,
+                modifier = Modifier.padding(bottom = 10.dp)
+            )
+
+            val cols = 6
+            quickAvatars.chunked(cols).forEach { row ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    row.forEach { avatar ->
+                        val isSelected = (uiState.editAvatarUrl == avatar) ||
+                            (uiState.editAvatarUrl.isBlank() && uiState.user?.avatarUrl == avatar)
+                        val emoji = avatar.removePrefix("emoji:")
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .aspectRatio(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    if (isSelected) ColorAmber.copy(alpha = 0.2f)
+                                    else Color(0xFFF7F4EE)
+                                )
+                                .border(
+                                    width = if (isSelected) 2.dp else 1.dp,
+                                    color = if (isSelected) ColorAmber else ColorBorder,
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .clickable(
+                                    indication = null,
+                                    interactionSource = remember { MutableInteractionSource() }
+                                ) { viewModel.onAvatarSelected(avatar) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(text = emoji, fontSize = 22.sp)
+                        }
+                    }
+                    // Fill remaining cells in last row
+                    repeat(cols - row.size) {
+                        Box(modifier = Modifier.weight(1f))
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // ── Personal info section label ───────────────────────────────────
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 14.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(ColorForest.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) { Text("👤", fontSize = 15.sp) }
+                Column {
+                    Text(
+                        text = "Thông tin cá nhân",
+                        fontFamily = DmSansFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = ColorInk
+                    )
+                    Text(
+                        text = "Hiển thị trên hồ sơ công khai",
+                        fontFamily = DmSansFamily,
+                        fontSize = 11.sp,
+                        color = ColorTextOnLightSecondary
+                    )
+                }
+            }
+
+            // Email (read-only) — styled as info row, not input field
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(ColorCream)
+                    .border(1.dp, ColorBorder, RoundedCornerShape(12.dp))
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Email,
+                    contentDescription = null,
+                    tint = ColorTextOnLightSecondary,
+                    modifier = Modifier.size(17.dp)
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Email đăng nhập",
+                        fontFamily = DmSansFamily,
+                        fontSize = 10.sp,
+                        color = ColorTextOnLightSecondary
+                    )
+                    Text(
+                        text = uiState.user?.email ?: "",
+                        fontFamily = DmSansFamily,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 13.sp,
+                        color = ColorInk
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Full name input
+            OutlinedTextField(
+                value = uiState.editFullName,
+                onValueChange = viewModel::onFullNameChange,
+                label = {
+                    Text(
+                        "Họ và tên",
+                        fontFamily = DmSansFamily,
+                        fontSize = 12.sp
+                    )
+                },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = ColorAmber,
+                    unfocusedBorderColor = ColorBorder,
+                    focusedLabelColor = ColorAmberDark,
+                    unfocusedLabelColor = ColorTextOnLightSecondary,
+                    focusedContainerColor = Color.White,
+                    unfocusedContainerColor = Color.White
+                )
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // University input
+            OutlinedTextField(
+                value = uiState.editUniversity,
+                onValueChange = viewModel::onUniversityChange,
+                label = {
+                    Text(
+                        "Trường đại học",
+                        fontFamily = DmSansFamily,
+                        fontSize = 12.sp
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Outlined.School,
+                        contentDescription = null,
+                        tint = ColorTextOnLightSecondary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = ColorAmber,
+                    unfocusedBorderColor = ColorBorder,
+                    focusedLabelColor = ColorAmberDark,
+                    unfocusedLabelColor = ColorTextOnLightSecondary,
+                    focusedContainerColor = Color.White,
+                    unfocusedContainerColor = Color.White
+                )
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // ── Change Password Card ─────────────────────────────────────────
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White)
+                    .border(1.dp, ColorBorder, RoundedCornerShape(12.dp))
+                    .clickable { showChangePasswordDialog = true }
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(ColorAmber.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) { Text("🔑", fontSize = 15.sp) }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Đổi mật khẩu tài khoản",
+                        fontFamily = DmSansFamily,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp,
+                        color = ColorInk
+                    )
+                    Text(
+                        text = "Cập nhật mật khẩu bảo mật mới",
+                        fontFamily = DmSansFamily,
+                        fontSize = 10.5.sp,
+                        color = ColorTextOnLightSecondary
+                    )
+                }
+                Icon(
+                    imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = ColorTextOnLightSecondary,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // ── Action buttons ────────────────────────────────────────────────
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Cancel
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .border(1.5.dp, ColorBorder, RoundedCornerShape(12.dp))
+                        .background(Color.White)
+                        .clickable(enabled = !uiState.isSaving) { onCancelClick() }
+                        .padding(vertical = 13.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Cancel,
+                            contentDescription = null,
+                            tint = ColorTextOnLightSecondary,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Text(
+                            text = "Hủy",
+                            fontFamily = DmSansFamily,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp,
+                            color = ColorTextOnLightSecondary
+                        )
+                    }
+                }
+
+                // Save
+                Box(
+                    modifier = Modifier
+                        .weight(1.6f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(
+                            brush = if (uiState.isSaving)
+                                Brush.horizontalGradient(listOf(ColorAmber.copy(alpha = 0.55f), ColorAmber.copy(alpha = 0.55f)))
+                            else
+                                Brush.horizontalGradient(listOf(ColorAmber, Color(0xFFE8A020)))
+                        )
+                        .clickable(enabled = !uiState.isSaving) { onSaveClick() }
+                        .padding(vertical = 13.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (uiState.isSaving) {
+                        CircularProgressIndicator(
+                            color = ColorInk,
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Save,
+                                contentDescription = null,
+                                tint = ColorInk,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Text(
+                                text = "Lưu thay đổi",
+                                fontFamily = DmSansFamily,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.5.sp,
+                                color = ColorInk
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(28.dp))
         }
     }
 }
+
 
 // ─── Styled Alert Box Composable ───
 
@@ -1285,4 +1487,266 @@ fun GuestProfileScreen(
             Spacer(Modifier.height(32.dp))
         }
     }
+}
+
+@Composable
+private fun ChangePasswordDialog(
+    uiState: ProfileUiState,
+    viewModel: ProfileViewModel,
+    onDismiss: () -> Unit
+) {
+    var currentPassword by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    var confirmNewPassword by remember { mutableStateOf("") }
+
+    var currentPasswordVisible by remember { mutableStateOf(false) }
+    var newPasswordVisible by remember { mutableStateOf(false) }
+    var confirmNewPasswordVisible by remember { mutableStateOf(false) }
+
+    var localError by remember { mutableStateOf<String?>(null) }
+
+    // Clear viewModel messages when dialog is opened/dismissed
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        viewModel.clearChangePasswordMessages()
+        onDispose {
+            viewModel.clearChangePasswordMessages()
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = { if (!uiState.isChangingPassword) onDismiss() },
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(ColorAmber.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("🔑", fontSize = 16.sp)
+                }
+                Text(
+                    text = "Đổi mật khẩu",
+                    fontFamily = DmSansFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = ColorInk
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Nhập mật khẩu hiện tại và mật khẩu mới để thay đổi. Mật khẩu mới cần ít nhất 6 ký tự.",
+                    fontFamily = DmSansFamily,
+                    fontSize = 11.sp,
+                    color = ColorTextOnLightSecondary,
+                    lineHeight = 16.sp
+                )
+
+                // Current Password
+                OutlinedTextField(
+                    value = currentPassword,
+                    onValueChange = { currentPassword = it; localError = null },
+                    label = { Text("Mật khẩu hiện tại", fontFamily = DmSansFamily, fontSize = 11.sp) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Outlined.Lock,
+                            contentDescription = null,
+                            tint = ColorTextOnLightSecondary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    },
+                    trailingIcon = {
+                        IconButton(onClick = { currentPasswordVisible = !currentPasswordVisible }) {
+                            Icon(
+                                imageVector = if (currentPasswordVisible) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
+                                contentDescription = if (currentPasswordVisible) "Ẩn mật khẩu" else "Hiện mật khẩu",
+                                tint = ColorTextOnLightSecondary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    },
+                    visualTransformation = if (currentPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = ColorAmber,
+                        unfocusedBorderColor = ColorBorder,
+                        focusedLabelColor = ColorAmberDark,
+                        unfocusedLabelColor = ColorTextOnLightSecondary,
+                        focusedContainerColor = ColorCream,
+                        unfocusedContainerColor = ColorCream
+                    )
+                )
+
+                // New Password
+                OutlinedTextField(
+                    value = newPassword,
+                    onValueChange = { newPassword = it; localError = null },
+                    label = { Text("Mật khẩu mới", fontFamily = DmSansFamily, fontSize = 11.sp) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Outlined.Lock,
+                            contentDescription = null,
+                            tint = ColorTextOnLightSecondary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    },
+                    trailingIcon = {
+                        IconButton(onClick = { newPasswordVisible = !newPasswordVisible }) {
+                            Icon(
+                                imageVector = if (newPasswordVisible) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
+                                contentDescription = if (newPasswordVisible) "Ẩn mật khẩu" else "Hiện mật khẩu",
+                                tint = ColorTextOnLightSecondary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    },
+                    visualTransformation = if (newPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = ColorAmber,
+                        unfocusedBorderColor = ColorBorder,
+                        focusedLabelColor = ColorAmberDark,
+                        unfocusedLabelColor = ColorTextOnLightSecondary,
+                        focusedContainerColor = ColorCream,
+                        unfocusedContainerColor = ColorCream
+                    )
+                )
+
+                // Confirm New Password
+                OutlinedTextField(
+                    value = confirmNewPassword,
+                    onValueChange = { confirmNewPassword = it; localError = null },
+                    label = { Text("Nhập lại mật khẩu mới", fontFamily = DmSansFamily, fontSize = 11.sp) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Outlined.Lock,
+                            contentDescription = null,
+                            tint = ColorTextOnLightSecondary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    },
+                    trailingIcon = {
+                        IconButton(onClick = { confirmNewPasswordVisible = !confirmNewPasswordVisible }) {
+                            Icon(
+                                imageVector = if (confirmNewPasswordVisible) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
+                                contentDescription = if (confirmNewPasswordVisible) "Ẩn mật khẩu" else "Hiện mật khẩu",
+                                tint = ColorTextOnLightSecondary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    },
+                    visualTransformation = if (confirmNewPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = ColorAmber,
+                        unfocusedBorderColor = ColorBorder,
+                        focusedLabelColor = ColorAmberDark,
+                        unfocusedLabelColor = ColorTextOnLightSecondary,
+                        focusedContainerColor = ColorCream,
+                        unfocusedContainerColor = ColorCream
+                    )
+                )
+
+                // Display error message from local or viewModel
+                val displayError = localError ?: uiState.changePasswordError
+                if (displayError != null) {
+                    Text(
+                        text = displayError,
+                        fontFamily = DmSansFamily,
+                        fontSize = 11.sp,
+                        color = ColorError,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
+                // Display success message
+                if (uiState.changePasswordSuccess != null) {
+                    Text(
+                        text = uiState.changePasswordSuccess,
+                        fontFamily = DmSansFamily,
+                        fontSize = 11.sp,
+                        color = ColorForest,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(
+                        brush = if (uiState.isChangingPassword)
+                            Brush.horizontalGradient(listOf(ColorAmber.copy(alpha = 0.55f), ColorAmber.copy(alpha = 0.55f)))
+                        else
+                            Brush.horizontalGradient(listOf(ColorAmber, Color(0xFFE8A020)))
+                    )
+                    .clickable(enabled = !uiState.isChangingPassword) {
+                        if (currentPassword.isBlank() || newPassword.isBlank() || confirmNewPassword.isBlank()) {
+                            localError = "Vui lòng điền đầy đủ các trường."
+                            return@clickable
+                        }
+                        if (newPassword != confirmNewPassword) {
+                            localError = "Mật khẩu xác nhận không khớp."
+                            return@clickable
+                        }
+                        viewModel.onChangePassword(currentPassword, newPassword) {
+                            // Clear input fields on success
+                            currentPassword = ""
+                            newPassword = ""
+                            confirmNewPassword = ""
+                        }
+                    }
+                    .padding(horizontal = 16.dp, vertical = 9.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                if (uiState.isChangingPassword) {
+                    CircularProgressIndicator(
+                        color = ColorInk,
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text(
+                        text = "Xác nhận",
+                        fontFamily = DmSansFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        color = ColorInk
+                    )
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !uiState.isChangingPassword,
+                colors = ButtonDefaults.textButtonColors(contentColor = ColorTextOnLightSecondary)
+            ) {
+                Text(
+                    text = "Đóng",
+                    fontFamily = DmSansFamily,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        },
+        containerColor = Color.White,
+        shape = RoundedCornerShape(16.dp)
+    )
 }

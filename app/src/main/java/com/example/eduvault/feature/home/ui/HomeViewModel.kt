@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 import com.example.eduvault.domain.repository.CategoryRepository
-import com.example.eduvault.domain.repository.DocumentRepository
+import com.example.eduvault.domain.usecase.GetPublishedDocumentsUseCase
 
 /**
  * ViewModel cho màn hình Home.
@@ -33,7 +33,7 @@ class HomeViewModel @Inject constructor(
     private val categoryRepository: CategoryRepository,
     private val aiRepository: AiRepository,
     private val notificationRepository: NotificationRepository,
-    private val documentRepository: DocumentRepository
+    private val getPublishedDocuments: GetPublishedDocumentsUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -191,13 +191,13 @@ class HomeViewModel @Inject constructor(
 
     fun loadRecentDocuments() {
         viewModelScope.launch {
-            documentRepository.getDocuments().onSuccess { firestoreDocs ->
+            getPublishedDocuments().onSuccess { firestoreDocs ->
                 val converted = firestoreDocs.map { doc ->
                     val type = when (doc.type) {
-                        com.example.eduvault.feature.library.ui.LibraryDocType.NOTE -> DocType.NOTE
-                        com.example.eduvault.feature.library.ui.LibraryDocType.QUIZ -> DocType.QUIZ
-                        com.example.eduvault.feature.library.ui.LibraryDocType.SLIDE -> DocType.SLIDE
-                        com.example.eduvault.feature.library.ui.LibraryDocType.SUMMARY -> DocType.SUMMARY
+                        com.example.eduvault.domain.model.LibraryDocumentType.NOTE -> DocType.NOTE
+                        com.example.eduvault.domain.model.LibraryDocumentType.QUIZ -> DocType.QUIZ
+                        com.example.eduvault.domain.model.LibraryDocumentType.SLIDE -> DocType.SLIDE
+                        com.example.eduvault.domain.model.LibraryDocumentType.SUMMARY -> DocType.SUMMARY
                     }
                     val emoji = when (type) {
                         DocType.NOTE -> "📝"
@@ -308,8 +308,7 @@ class HomeViewModel @Inject constructor(
                 }
                 _topicTags.update { tagsList }
             }.onFailure {
-                // Fallback to companion mock data if firestore fails
-                _topicTags.update { Companion.topicTags }
+                _topicTags.update { emptyList() }
             }
         }
     }
@@ -320,35 +319,4 @@ class HomeViewModel @Inject constructor(
         _uiState.update { it.copy(selectedTab = tab) }
     }
 
-    companion object {
-        val recentDocs = listOf(
-            RecentDoc("1", "Kinh tế vi mô — Chương 3: Cung & Cầu", "ECON101", DocType.NOTE, "📝", 1240, 87, 24, 0),
-            RecentDoc("2", "Quiz Toán Kinh tế Cuối kỳ", "MATH201", DocType.QUIZ, "🧩", 543, 32, 20, 1),
-            RecentDoc("3", "Marketing Mix — 4P Framework", "MKT301", DocType.SLIDE, "📊", 892, 64, 35, 2),
-            RecentDoc("4", "Kế toán tài chính — Bảng cân đối", "ACC101", DocType.NOTE, "📋", 421, 29, 18, 3),
-            RecentDoc("5", "Tóm tắt Pháp luật kinh doanh", "LAW201", DocType.SUMMARY, "⚖️", 678, 51, 12, 4),
-            RecentDoc("6", "Thống kê — Kiểm định giả thuyết", "STAT102", DocType.NOTE, "📈", 334, 27, 28, 5),
-        )
-
-        val activityItems = listOf(
-            ActivityItem("1", "Ghi chú Kinh tế vi mô Ch.4", "ECON101 · Đã chỉnh sửa", "2 phút trước", ActivityType.NOTE, 0.72f),
-            ActivityItem("2", "Quiz Marketing — Chương 2", "MKT301 · 16/20 câu đúng", "1 giờ trước", ActivityType.QUIZ, 0.80f),
-            ActivityItem("3", "Slide Kế toán tài chính", "ACC101 · Đã xem 18 trang", "3 giờ trước", ActivityType.SLIDE, 0.51f),
-            ActivityItem("4", "Tóm tắt Pháp luật kinh doanh", "LAW201 · Đã đọc", "Hôm qua", ActivityType.NOTE, 1f),
-            ActivityItem("5", "Quiz Toán Kinh tế — Thực hành", "MATH201 · 9/12 câu đúng", "Hôm qua", ActivityType.QUIZ, 0.75f),
-        )
-
-        val topicTags = listOf(
-            TopicTag("Kinh tế học", 124),
-            TopicTag("Marketing", 89),
-            TopicTag("Kế toán", 67),
-            TopicTag("Pháp luật", 45),
-            TopicTag("Thống kê", 112),
-            TopicTag("Tài chính", 78),
-            TopicTag("Quản trị", 93),
-            TopicTag("Ngoại ngữ", 56),
-            TopicTag("Công nghệ", 34),
-            TopicTag("Tâm lý học", 41),
-        )
-    }
 }

@@ -1,5 +1,3 @@
-import java.util.Properties
-import java.io.FileInputStream
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -23,21 +21,12 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // Read GEMINI_API_KEY from local.properties for safe Hilt/BuildConfig injection
-        val localProperties = Properties()
-        val localPropertiesFile = rootProject.file("local.properties")
-        if (localPropertiesFile.exists()) {
-            val stream = FileInputStream(localPropertiesFile)
-            localProperties.load(stream)
-            stream.close()
-        }
-        val geminiApiKey = localProperties.getProperty("GEMINI_API_KEY") ?: ""
-        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -52,7 +41,6 @@ android {
 
     buildFeatures {
         compose = true
-        buildConfig = true
     }
 
     packaging {
@@ -99,8 +87,9 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
     implementation(libs.firebase.firestore)
+    implementation(libs.firebase.functions)
+    implementation(libs.firebase.appcheck.playintegrity)
     implementation(libs.firebase.storage)
-    implementation(libs.generativeai)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

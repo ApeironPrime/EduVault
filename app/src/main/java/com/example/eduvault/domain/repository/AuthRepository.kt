@@ -99,6 +99,17 @@ interface AuthRepository {
     suspend fun loginWithGoogle(idToken: String): Result<User>
 
     /**
+     * Thay đổi mật khẩu người dùng hiện tại.
+     * Xác thực lại bằng mật khẩu hiện tại rồi đổi sang mật khẩu mới.
+     */
+    suspend fun changePassword(currentPassword: String, newPassword: String): Result<Unit>
+
+    /**
+     * Lưu bộ đề trắc nghiệm AI đã tạo lên Firestore.
+     */
+    suspend fun saveQuizSet(quizSet: com.example.eduvault.feature.quiz.ui.QuizSet, questions: List<com.example.eduvault.feature.quiz.ui.QuizQuestion>): Result<Unit>
+
+    /**
      * Đăng xuất.
      */
     fun logout()

@@ -61,32 +61,32 @@ class NotificationRepositoryImpl @Inject constructor(
                 val currentTime = System.currentTimeMillis()
                 val defaultNotifications = listOf(
                     EduNotification(
-                        title = "🏆 Thành tựu mới!",
-                        content = "Tài liệu \"Kinh tế vi mô — Chương 3: Cung & Cầu\" của bạn đạt mốc 100 lượt tải về! (+20 lượt sử dụng tài liệu 🧩)",
-                        timestamp = currentTime - 5 * 60_000, // 5 phút trước
+                        title = "🎁 Chào mừng đến với EduVault!",
+                        content = "Tài khoản của bạn đã được tạo thành công. Khám phá kho tài liệu học tập và bắt đầu chia sẻ ngay hôm nay.",
+                        timestamp = currentTime - 5 * 60_000,
                         userId = userId,
-                        type = NotificationType.ACHIEVEMENT
+                        type = NotificationType.SYSTEM
                     ),
                     EduNotification(
-                        title = "🧠 Gợi ý từ AI",
-                        content = "Trợ lý AI khuyên bạn nên làm thử Quiz \"Marketing Mix\" để ôn tập chuẩn bị thi cuối kỳ.",
-                        timestamp = currentTime - 60 * 60_000, // 1 giờ trước
+                        title = "📚 Hướng dẫn sử dụng",
+                        content = "Upload tài liệu lên EduVault để nhận credit và chia sẻ kiến thức với cộng đồng sinh viên. Mỗi lượt tải thành công bạn sẽ nhận thêm điểm XP.",
+                        timestamp = currentTime - 60 * 60_000,
                         userId = userId,
                         type = NotificationType.AI
                     ),
                     EduNotification(
-                        title = "📚 Đóng góp cộng đồng",
-                        content = "Thành viên Aether vừa lưu tài liệu \"Marketing Mix — 4P\" của bạn vào thư viện cá nhân.",
-                        timestamp = currentTime - 3 * 3600_000, // 3 giờ trước
+                        title = "🧩 Tính năng Quiz AI",
+                        content = "Thử tạo bộ câu hỏi trắc nghiệm tự động từ tài liệu của bạn bằng tính năng Quiz AI. Học hiệu quả hơn và luyện thi thông minh hơn.",
+                        timestamp = currentTime - 3 * 3600_000,
                         userId = userId,
                         type = NotificationType.COMMUNITY
                     ),
                     EduNotification(
-                        title = "🎁 Quà tặng người dùng",
-                        content = "Chào mừng bạn gia nhập EduVault! Bạn được tặng sẵn +1 lượt sử dụng tài liệu học tập.",
-                        timestamp = currentTime - 24 * 3600_000, // 24 giờ trước (Hôm qua)
+                        title = "💡 Mẹo sử dụng",
+                        content = "Dùng tính năng Smart Summary để tóm tắt tài liệu PDF bằng AI chỉ trong vài giây. Tiết kiệm thời gian ôn tập hiệu quả.",
+                        timestamp = currentTime - 24 * 3600_000,
                         userId = userId,
-                        type = NotificationType.SYSTEM
+                        type = NotificationType.ACHIEVEMENT
                     )
                 )
 

@@ -20,5 +20,10 @@ data class ProfileUiState(
     // Form inputs during edit mode
     val editFullName: String = "",
     val editUniversity: String = "",
-    val editAvatarUrl: String = ""
+    val editAvatarUrl: String = "",
+
+    // Password change status
+    val isChangingPassword: Boolean = false,
+    val changePasswordError: String? = null,
+    val changePasswordSuccess: String? = null
 )

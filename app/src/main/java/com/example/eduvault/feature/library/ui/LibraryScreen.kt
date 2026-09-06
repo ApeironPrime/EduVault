@@ -104,6 +104,7 @@ import com.example.eduvault.core.theme.PlayfairDisplayFamily
 import com.example.eduvault.domain.model.DocReaderState
 import com.example.eduvault.domain.model.DocViewerTabsContent
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import android.graphics.Bitmap
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
@@ -114,6 +115,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.ui.platform.LocalContext
 import java.io.File
+import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.withLock
@@ -623,7 +625,7 @@ private fun DocsBanner(
                 // Stat 1
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = if (totalDocs >= 1000) "${String.format("%.1f", totalDocs / 1000f)}k" else "$totalDocs",
+                        text = if (totalDocs >= 1000) "${String.format(Locale.ROOT, "%.1f", totalDocs / 1000f)}k" else "$totalDocs",
                         fontFamily = JetBrainsMonoFamily,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
@@ -1467,8 +1469,6 @@ fun DocViewerDialog(
                     Phân loại: ${doc.type.label}
                     Lượt xem: ${doc.views}
                     Đánh giá: ${if (doc.rating <= 0f) "Chưa đánh giá" else "${doc.rating} ★"}
-
-                    Đây là tài liệu học tập được chia sẻ trên nền tảng EduVault dành cho sinh viên đại học. Tài liệu cung cấp nền tảng kiến thức cơ bản vững chắc, giúp người học hiểu rõ bản chất của môn học và áp dụng hiệu quả vào kỳ thi.
                 """.trimIndent(),
                 "💡 Trọng tâm" to "Đang chờ tải nội dung trọng tâm...",
                 "✏️ Luyện tập" to "Đang chờ tải bài luyện tập...",
@@ -2636,6 +2636,19 @@ fun PdfViewer(
                 if (!file.exists() && downloadUrl.isNotEmpty()) {
                     isDownloading = true
                     android.util.Log.d("PdfViewer", "Đang tải xuống tài liệu từ URL: $downloadUrl")
+                    if (downloadUrl.startsWith("documents/")) {
+                        val parent = file.parentFile
+                        if (parent != null && !parent.exists()) parent.mkdirs()
+                        val tempFile = File(file.absolutePath + ".tmp")
+                        com.google.firebase.storage.FirebaseStorage.getInstance()
+                            .reference.child(downloadUrl)
+                            .getFile(tempFile)
+                            .await()
+                        if (!tempFile.renameTo(file)) {
+                            tempFile.copyTo(file, overwrite = true)
+                            tempFile.delete()
+                        }
+                    } else {
                     val url = java.net.URL(downloadUrl)
                     val connection = url.openConnection() as java.net.HttpURLConnection
                     connection.requestMethod = "GET"
@@ -2657,6 +2670,7 @@ fun PdfViewer(
                         tempFile.renameTo(file)
                     } else {
                         throw Exception("Lỗi tải tệp: HTTP ${connection.responseCode}")
+                    }
                     }
                     isDownloading = false
                 }

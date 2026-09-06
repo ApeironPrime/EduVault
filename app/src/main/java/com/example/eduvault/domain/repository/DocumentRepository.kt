@@ -1,7 +1,8 @@
 package com.example.eduvault.domain.repository
 
 import com.example.eduvault.domain.model.DocViewerTabsContent
-import com.example.eduvault.feature.library.ui.LibraryDoc
+import com.example.eduvault.domain.model.DocumentPage
+import com.example.eduvault.domain.model.LibraryDocument
 
 /**
  * Interface cho DocumentRepository - Quản lý tài liệu.
@@ -21,7 +22,14 @@ interface DocumentRepository {
     /**
      * Lấy danh sách tài liệu từ Firestore.
      */
-    suspend fun getDocuments(): Result<List<LibraryDoc>>
+    suspend fun getDocuments(): Result<List<LibraryDocument>>
+
+    /**
+     * Fetches one server-ordered page of approved documents. The cursor is the
+     * last document ID returned by the preceding page.
+     */
+    suspend fun getDocumentsPage(pageSize: Int, cursor: String? = null): Result<DocumentPage> =
+        getDocuments().map { DocumentPage(documents = it, nextCursor = null) }
 
     /**
      * Tố cáo tài liệu vi phạm.

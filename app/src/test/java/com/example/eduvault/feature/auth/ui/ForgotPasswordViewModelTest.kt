@@ -278,7 +278,7 @@ class ForgotPasswordViewModelTest {
     }
 
     @Test
-    fun testVerifyOtp_withDemoOtp_success() = runTest(mainDispatcherRule.testDispatcher) {
+    fun testVerifyOtp_withSixDigitValue_doesNotAuthorizeReset() = runTest(mainDispatcherRule.testDispatcher) {
         viewModel.onOtpChange("123456")
         viewModel.onVerifyOtpClick()
         
@@ -290,7 +290,8 @@ class ForgotPasswordViewModelTest {
         
         val state = viewModel.uiState.value
         assertFalse(state.isLoading)
-        assertTrue(state.isVerifySuccess)
+        assertFalse(state.isVerifySuccess)
+        assertTrue(state.errorMessage != null)
     }
 
     @Test

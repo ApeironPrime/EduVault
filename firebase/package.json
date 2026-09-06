@@ -1,0 +1,14 @@
+{
+  "name": "eduvault-firebase-security",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:rules": "firebase emulators:exec --project eduvault-rules-test --only auth,firestore,storage \"node --test test/firestore.rules.test.mjs\"",
+    "grant:admin": "node scripts/grant-admin-claim.mjs"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.0",
+    "firebase-admin": "^13.0.0",
+    "firebase-tools": "^14.0.0"
+  }
+}

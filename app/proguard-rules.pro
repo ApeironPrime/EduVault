@@ -19,3 +19,14 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Keep useful stack-trace metadata in release builds. R8 has built-in support
+# for Compose, Hilt and Firebase; avoid broad keep rules that defeat shrinking.
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
+
+# Firebase serializes custom models through getters/setters when present.
+-keepclassmembers class com.example.eduvault.domain.model.** {
+    <fields>;
+    <methods>;
+}

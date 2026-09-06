@@ -118,7 +118,7 @@ class UploadDocViewModel @Inject constructor(
     }
 
     /**
-     * Sao chép file PDF, Word được chọn cục bộ để lưu trữ bền vững
+     * Xử lý lấy file PDF/Word cục bộ từ điện thoại của người dùng
      */
     fun handleFilePicked(context: Context, uri: Uri) {
         viewModelScope.launch {

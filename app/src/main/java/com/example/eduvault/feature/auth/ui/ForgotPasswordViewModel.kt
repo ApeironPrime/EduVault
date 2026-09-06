@@ -148,7 +148,12 @@ class ForgotPasswordViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             delay(1200) // Tạo độ trễ mượt mà
-            _uiState.update { it.copy(isLoading = false, isVerifySuccess = true) }
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    errorMessage = "Vui lòng mở liên kết đặt lại mật khẩu trong email để tiếp tục."
+                )
+            }
         }
     }
 
