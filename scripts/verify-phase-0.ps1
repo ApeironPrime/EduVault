@@ -7,7 +7,9 @@ function Assert-NoMatch {
         [string]$Message
     )
 
-    $matches = & rg -n --glob '!build/**' -- $Pattern @Paths
+    # Git is already required by checkout. Include untracked source files for
+    # local runs, while respecting ignored files and excluding build outputs.
+    $matches = & git grep -n -I -E --untracked --exclude-standard -e $Pattern -- @Paths ':(exclude)**/build/**'
     if ($LASTEXITCODE -eq 0) {
         $matches | Write-Output
         throw $Message
