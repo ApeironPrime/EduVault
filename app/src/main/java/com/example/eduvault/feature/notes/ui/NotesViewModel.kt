@@ -66,6 +66,7 @@ class NotesViewModel @Inject constructor(
      * Nếu đã có ghi chú → nạp sẵn nội dung; nếu chưa → mở trống.
      */
     fun openNoteEditor(docId: String, docTitle: String, docCourseCode: String) {
+        _uiState.update { it.copy(error = null) }
         viewModelScope.launch {
             // Tìm trong cache trước
             val existing = _uiState.value.notes.find { it.docId == docId }
@@ -88,16 +89,9 @@ class NotesViewModel @Inject constructor(
                         )
                     }
                 }.onFailure {
-                    // Nếu lỗi — tạo note trống
+                    // A failed read is not proof that the note does not exist.
                     _uiState.update {
-                        it.copy(
-                            editingNote = UserNote(
-                                docId = docId,
-                                docTitle = docTitle,
-                                docCourseCode = docCourseCode
-                            ),
-                            editorContent = ""
-                        )
+                        it.copy(error = "Không thể mở ghi chú. Vui lòng kiểm tra kết nối rồi thử lại.")
                     }
                 }
             }

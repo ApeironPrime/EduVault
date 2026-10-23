@@ -11,12 +11,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-import androidx.core.net.toUri
+import java.net.URI
+import java.net.URLDecoder
 
 import com.example.eduvault.domain.repository.AuthRepository
 
 /**
- * ViewModel cho màn hình Quên mật khẩu (2 bước: Nhập email → Xác nhận OTP).
+ * Khôi phục mật khẩu bằng email và xác minh liên kết Firebase Auth.
  *
  * Quy tắc tuân thủ:
  * - Không có Context, Activity, Fragment, hoặc View nào trong class này.
@@ -32,6 +33,7 @@ class ForgotPasswordViewModel @Inject constructor(
     val uiState: StateFlow<ForgotPasswordUiState> = _uiState.asStateFlow()
 
     private var countdownJob: Job? = null
+    private var linkVerificationJob: Job? = null
 
     // ─── Event handlers ───────────────────────────────────────────────────────
 
@@ -46,31 +48,35 @@ class ForgotPasswordViewModel @Inject constructor(
     }
 
     fun onLinkInputChange(link: String) {
-        _uiState.update { it.copy(linkInput = link, errorMessage = null) }
-        val parsedUri = try {
-            link.toUri()
-        } catch (e: Exception) {
-            null
-        }
-        val oobCode = parsedUri?.getQueryParameter("oobCode")
+        linkVerificationJob?.cancel()
+        _uiState.update { it.copy(linkInput = link, errorMessage = null, isLoading = false,
+            isRealLinkValid = false, oobCode = null, verifiedEmail = null, isVerifySuccess = false) }
+        val oobCode = try {
+            val uri = URI(link.trim())
+            if (!uri.isOpaque && uri.scheme in listOf("https", "http") && !uri.host.isNullOrBlank()) {
+                uri.rawQuery?.split("&")?.firstOrNull { it.substringBefore("=") == "oobCode" }
+                    ?.substringAfter("=", "")?.let { URLDecoder.decode(it, "UTF-8") }?.takeIf { it.isNotBlank() }
+            } else null
+        } catch (_: Exception) { null }
 
         if (oobCode != null) {
-            viewModelScope.launch {
+            linkVerificationJob = viewModelScope.launch {
                 _uiState.update { it.copy(isLoading = true) }
                 authRepository.verifyPasswordResetCode(oobCode)
                     .onSuccess { email ->
+                        if (_uiState.value.linkInput != link) return@onSuccess
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
                                 isRealLinkValid = true,
                                 verifiedEmail = email,
                                 oobCode = oobCode,
-                                otp = "888888", // Mã OTP tượng trưng cho thật
                                 otpError = null
                             )
                         }
                     }
                     .onFailure { exception ->
+                        if (_uiState.value.linkInput != link) return@onFailure
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
@@ -129,11 +135,7 @@ class ForgotPasswordViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Bước 2: Xác nhận OTP người dùng nhập.
-     * Lưu ý: Vì Firebase Auth gửi link đặt lại mật khẩu trực tiếp qua Email nên không dùng OTP số.
-     * Hệ thống hỗ trợ chế độ Demo OTP 6 số và dán Link khôi phục thật để khôi phục mật khẩu 100%.
-     */
+    /** Tiếp tục chỉ khi liên kết khôi phục đã được xác minh. */
     fun onVerifyOtpClick() {
         _uiState.update { it.copy(hasAttemptedVerify = true) }
         
@@ -143,18 +145,8 @@ class ForgotPasswordViewModel @Inject constructor(
             return
         }
 
-        if (!validateOtp()) return
+        _uiState.update { it.copy(errorMessage = "Vui lòng mở hoặc dán liên kết đặt lại mật khẩu trong email để tiếp tục.") }
 
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
-            delay(1200) // Tạo độ trễ mượt mà
-            _uiState.update {
-                it.copy(
-                    isLoading = false,
-                    errorMessage = "Vui lòng mở liên kết đặt lại mật khẩu trong email để tiếp tục."
-                )
-            }
-        }
     }
 
     /**
@@ -170,9 +162,14 @@ class ForgotPasswordViewModel @Inject constructor(
      */
     fun onBackToEmailStep() {
         countdownJob?.cancel()
+        linkVerificationJob?.cancel()
         _uiState.update {
             it.copy(
                 isOtpSent = false,
+                isLoading = false,
+                isRealLinkValid = false,
+                oobCode = null,
+                verifiedEmail = null,
                 otp = "",
                 otpError = null,
                 errorMessage = null,
@@ -198,21 +195,6 @@ class ForgotPasswordViewModel @Inject constructor(
         }
         if (error != null) {
             _uiState.update { it.copy(emailError = error) }
-            return false
-        }
-        return true
-    }
-
-    private fun validateOtp(): Boolean {
-        val otp = _uiState.value.otp.trim()
-        val error = when {
-            otp.isBlank() -> "Vui lòng nhập mã OTP"
-            otp.length < 6 -> "Mã OTP phải có đủ 6 chữ số"
-            !otp.all { it.isDigit() } -> "Mã OTP chỉ được chứa chữ số"
-            else -> null
-        }
-        if (error != null) {
-            _uiState.update { it.copy(otpError = error) }
             return false
         }
         return true

@@ -1,17 +1,19 @@
 package com.example.eduvault.data.repository
 
 import com.example.eduvault.domain.model.User
+import com.example.eduvault.domain.model.QuizAttemptResult
 import com.example.eduvault.domain.repository.AuthRepository
-import com.example.eduvault.feature.quiz.ui.QuizQuestion
-import com.example.eduvault.feature.quiz.ui.QuizSet
+import com.example.eduvault.domain.model.QuizQuestion
+import com.example.eduvault.domain.model.QuizSet
 
 /**
  * Fake implementation of AuthRepository to be used in local JVM unit tests.
  * Allows easy configuration of success/failure results for all operations.
  */
-class FakeAuthRepository : AuthRepository {
+open class FakeAuthRepository : AuthRepository {
     // Variable to control simulated delay
     var delayMs: Long = 0
+    var onRecordQuizAttempt: ((quizId: String, attemptId: String, answers: List<Int>) -> Unit)? = null
 
     // Variables to control results in tests
     var loginResult: Result<User> = Result.success(User(uid = "test-uid", fullName = "Test User", email = "test@example.com"))
@@ -28,6 +30,7 @@ class FakeAuthRepository : AuthRepository {
     var getQuizQuestionsResult: Result<List<QuizQuestion>> = Result.success(emptyList())
     var getAllUsersResult: Result<List<User>> = Result.success(emptyList())
     var updateUserQuizStatsResult: Result<User> = Result.success(User(uid = "test-uid", fullName = "Test User", email = "test@example.com"))
+    var recordQuizAttemptResult: Result<QuizAttemptResult> = Result.success(QuizAttemptResult(quizId = "test-quiz", correctCount = 5, questionCount = 5, score = 100.0, xpEarned = 50))
     var toggleSaveDocumentResult: Result<User> = Result.success(User(uid = "test-uid", fullName = "Test User", email = "test@example.com"))
     var loginWithGoogleResult: Result<User> = Result.success(User(uid = "test-uid", fullName = "Test User", email = "test@example.com"))
     var changePasswordResult: Result<Unit> = Result.success(Unit)
@@ -69,6 +72,15 @@ class FakeAuthRepository : AuthRepository {
     override suspend fun getAllUsers(): Result<List<User>> = getAllUsersResult
 
     override suspend fun updateUserQuizStats(score: Float, xpEarned: Int): Result<User> = updateUserQuizStatsResult
+
+    override suspend fun recordQuizAttempt(
+        quizId: String,
+        attemptId: String,
+        answers: List<Int>
+    ): Result<QuizAttemptResult> {
+        onRecordQuizAttempt?.invoke(quizId, attemptId, answers)
+        return recordQuizAttemptResult
+    }
 
     override suspend fun toggleSaveDocument(docId: String): Result<User> = toggleSaveDocumentResult
 

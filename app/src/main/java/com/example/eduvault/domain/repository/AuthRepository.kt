@@ -1,6 +1,9 @@
 package com.example.eduvault.domain.repository
 
 import com.example.eduvault.domain.model.User
+import com.example.eduvault.domain.model.QuizAttemptResult
+import com.example.eduvault.domain.model.QuizQuestion
+import com.example.eduvault.domain.model.QuizSet
 
 /**
  * Interface của AuthRepository — định nghĩa hợp đồng cho tầng data.
@@ -71,12 +74,12 @@ interface AuthRepository {
     /**
      * Lấy danh sách bộ đề từ collection "quizzes" trên Firestore.
      */
-    suspend fun getQuizSets(): Result<List<com.example.eduvault.feature.quiz.ui.QuizSet>>
+    suspend fun getQuizSets(): Result<List<QuizSet>>
 
     /**
      * Lấy danh sách câu hỏi chi tiết của đề từ Firestore.
      */
-    suspend fun getQuizQuestions(quizId: String): Result<List<com.example.eduvault.feature.quiz.ui.QuizQuestion>>
+    suspend fun getQuizQuestions(quizId: String): Result<List<QuizQuestion>>
 
     /**
      * Lấy toàn bộ danh sách người dùng từ Firestore để tính điểm bảng xếp hạng.
@@ -87,6 +90,15 @@ interface AuthRepository {
      * Cập nhật chỉ số thi đua trắc nghiệm và điểm XP của người dùng lên Firestore bằng Transaction an toàn.
      */
     suspend fun updateUserQuizStats(score: Float, xpEarned: Int): Result<User>
+
+    /**
+     * Ghi nhận lượt làm bài thi trắc nghiệm và tính điểm/XP an toàn thông qua Cloud Function.
+     */
+    suspend fun recordQuizAttempt(
+        quizId: String,
+        attemptId: String,
+        answers: List<Int>
+    ): Result<QuizAttemptResult>
 
     /**
      * Lưu hoặc bỏ lưu tài liệu (toggle bookmark) đồng bộ trực tiếp lên Firestore.
@@ -107,7 +119,7 @@ interface AuthRepository {
     /**
      * Lưu bộ đề trắc nghiệm AI đã tạo lên Firestore.
      */
-    suspend fun saveQuizSet(quizSet: com.example.eduvault.feature.quiz.ui.QuizSet, questions: List<com.example.eduvault.feature.quiz.ui.QuizQuestion>): Result<Unit>
+    suspend fun saveQuizSet(quizSet: QuizSet, questions: List<QuizQuestion>): Result<Unit>
 
     /**
      * Đăng xuất.

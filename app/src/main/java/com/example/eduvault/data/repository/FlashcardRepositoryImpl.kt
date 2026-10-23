@@ -35,4 +35,11 @@ class FlashcardRepositoryImpl @Inject constructor(
             )
         }
     }
+
+    override suspend fun getUserFlashcardCount(userId: String): Result<Int> = runCatching {
+        firestore.collection("flashcards")
+            .whereEqualTo("authorId", userId)
+            .get().await()
+            .size()
+    }
 }

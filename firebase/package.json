@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:rules": "firebase emulators:exec --project eduvault-rules-test --only auth,firestore,storage \"node --test test/firestore.rules.test.mjs\"",
+    "test:rules": "firebase emulators:exec --config ../firebase.rules-test.json --project eduvault-rules-test --only firestore \"node --test test/firestore.rules.test.mjs\"",
     "grant:admin": "node scripts/grant-admin-claim.mjs"
   },
   "devDependencies": {

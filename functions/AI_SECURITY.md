@@ -25,7 +25,7 @@
 - Inputs have strict field, length and history bounds; document context is capped at 30,000 characters.
 - Each account is limited to 30 calls and 120,000 input characters per UTC day. A rejected model response still consumes a reservation to resist retry abuse.
 - `aiUsage` stores counters; `aiAudit` stores only request ID, account ID, operation, model, size, status and latency. Prompts and model outputs are never persisted or logged.
-- The gateway gives the model an education-only system instruction and tells it to treat user content as untrusted. Gemini service safety policies remain active.
+- The gateway gives the model a software-training-only system instruction and tells it to treat user content as untrusted. Gemini service safety policies remain active.
 - The Android implementation contains no AI SDK, API key, or direct model call. It validates structured JSON before displaying quiz/doc-viewer content.
 
 ## Operational follow-up

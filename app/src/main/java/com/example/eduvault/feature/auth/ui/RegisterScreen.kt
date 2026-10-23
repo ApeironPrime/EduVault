@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -120,6 +121,7 @@ fun RegisterScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val context = androidx.compose.ui.platform.LocalContext.current
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
+    val webClientId = androidx.compose.ui.res.stringResource(com.example.eduvault.R.string.default_web_client_id)
 
     LaunchedEffect(uiState.isRegisterSuccess) {
         if (uiState.isRegisterSuccess) onNavigateToHome()
@@ -140,7 +142,7 @@ fun RegisterScreen(
                 // Cấu hình Web Client ID từ Firebase Console
                 val googleIdOption = com.google.android.libraries.identity.googleid.GetGoogleIdOption.Builder()
                     .setFilterByAuthorizedAccounts(false)
-                    .setServerClientId(context.getString(com.example.eduvault.R.string.default_web_client_id))
+                    .setServerClientId(webClientId)
                     .setAutoSelectEnabled(false)
                     .build()
 
@@ -254,7 +256,7 @@ private fun RegisterPhonePortraitLayout(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(180.dp)
+                .heightIn(min = 180.dp)
                 .background(ColorInk)
                 .drawBehind {
                     drawCircle(
@@ -293,7 +295,7 @@ private fun RegisterPhonePortraitLayout(
                 modifier = Modifier
                     .fillMaxWidth()
                     .statusBarsPadding()
-                    .padding(horizontal = 24.dp),
+                    .padding(horizontal = 24.dp, vertical = 20.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
@@ -335,7 +337,7 @@ private fun RegisterPhonePortraitLayout(
                                     fontStyle = FontStyle.Italic,
                                     color = ColorAmber,
                                 )
-                            ) { append("học tập") }
+                            ) { append("phát triển") }
                         },
                         fontFamily = PlayfairDisplayFamily,
                         fontWeight = FontWeight.Bold,
@@ -546,7 +548,7 @@ private fun RegisterLeftBrandPanel(modifier: Modifier = Modifier) {
                             color = ColorAmber,
                             fontFamily = PlayfairDisplayFamily,
                         )
-                    ) { append("học tập") }
+                    ) { append("phát triển") }
                 },
                 fontFamily = PlayfairDisplayFamily,
                 fontWeight = FontWeight.Bold,
@@ -558,7 +560,7 @@ private fun RegisterLeftBrandPanel(modifier: Modifier = Modifier) {
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "Tham gia cùng hàng nghìn sinh viên đang học tập và phát triển mỗi ngày.",
+                text = "Tham gia chương trình, học theo tài liệu đã kiểm duyệt và sẵn sàng cho dự án thực tế.",
                 fontFamily = DmSansFamily,
                 fontWeight = FontWeight.Normal,
                 fontSize = 12.sp,
@@ -570,9 +572,9 @@ private fun RegisterLeftBrandPanel(modifier: Modifier = Modifier) {
 
             // Feature pills
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                RegisterFeaturePill(icon = "📚", text = "500+ tài liệu học tập")
-                RegisterFeaturePill(icon = "🧠", text = "Quiz thông minh với AI")
-                RegisterFeaturePill(icon = "🆓", text = "Hoàn toàn miễn phí")
+                RegisterFeaturePill(icon = "📚", text = "Học liệu theo kỹ năng")
+                RegisterFeaturePill(icon = "✓", text = "Bài tự kiểm tra")
+                RegisterFeaturePill(icon = "📈", text = "Theo dõi kết quả đào tạo")
             }
         }
     }
@@ -653,7 +655,7 @@ private fun RegisterFormPanel(
         Spacer(modifier = Modifier.height(4.dp))
 
         Text(
-            text = "Bắt đầu hành trình học tập của bạn",
+            text = "Bắt đầu lộ trình phát triển kỹ năng",
             fontFamily = DmSansFamily,
             fontWeight = FontWeight.Normal,
             fontSize = if (isCompact) 12.sp else 13.sp,

@@ -12,6 +12,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,12 +22,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -68,17 +71,17 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -120,6 +123,7 @@ fun LoginScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val context = androidx.compose.ui.platform.LocalContext.current
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
+    val webClientId = androidx.compose.ui.res.stringResource(com.example.eduvault.R.string.default_web_client_id)
 
     // Điều hướng khi login thành công
     LaunchedEffect(uiState.isLoginSuccess) {
@@ -142,7 +146,7 @@ fun LoginScreen(
                 // Cấu hình Web Client ID từ Firebase Console
                 val googleIdOption = com.google.android.libraries.identity.googleid.GetGoogleIdOption.Builder()
                     .setFilterByAuthorizedAccounts(false)
-                    .setServerClientId(context.getString(com.example.eduvault.R.string.default_web_client_id))
+                    .setServerClientId(webClientId)
                     .setAutoSelectEnabled(false)
                     .build()
 
@@ -261,7 +265,7 @@ private fun PhonePortraitLayout(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(200.dp)
+                .heightIn(min = 200.dp)
                 .background(ColorInk)
                 .drawBehind {
                     // Glow ở trung tâm header
@@ -317,7 +321,7 @@ private fun PhonePortraitLayout(
                 modifier = Modifier
                     .fillMaxWidth()
                     .statusBarsPadding()
-                    .padding(horizontal = 28.dp),
+                    .padding(horizontal = 28.dp, vertical = 20.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
@@ -333,13 +337,7 @@ private fun PhonePortraitLayout(
                         ),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        text = "E",
-                        fontFamily = PlayfairDisplayFamily,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 26.sp,
-                        color = ColorInk,
-                    )
+                    EduVaultMark(modifier = Modifier.size(30.dp))
                 }
 
                 Column {
@@ -353,17 +351,9 @@ private fun PhonePortraitLayout(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = buildAnnotatedString {
-                            append("Nơi lưu giữ ")
-                            withStyle(
-                                SpanStyle(
-                                    fontStyle = FontStyle.Italic,
-                                    color = ColorAmber,
-                                )
-                            ) { append("mọi kiến thức") }
-                        },
+                        text = "Không gian đào tạo nhân sự mới",
                         fontFamily = PlayfairDisplayFamily,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.SemiBold,
                         fontSize = 17.sp,
                         lineHeight = 24.sp,
                         color = ColorTextOnDark,
@@ -371,10 +361,12 @@ private fun PhonePortraitLayout(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Stats nhỏ gọn
-                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        PhoneBrandStat(number = "500+", label = "Tài liệu")
-                        PhoneBrandStat(number = "12K+", label = "Sinh viên")
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        PhoneBrandChip(label = "Học liệu nội bộ")
+                        PhoneBrandChip(label = "Tự kiểm tra")
                     }
                 }
             }
@@ -404,21 +396,54 @@ private fun PhonePortraitLayout(
 }
 
 @Composable
-private fun PhoneBrandStat(number: String, label: String) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            text = number,
-            fontFamily = JetBrainsMonoFamily,
-            fontWeight = FontWeight.Medium,
-            fontSize = 12.sp,
-            color = ColorAmber,
-        )
+private fun EduVaultMark(modifier: Modifier = Modifier) {
+    // An open book inside a vault: a geometric mark that stays crisp at any density.
+    val vaultOutline = remember {
+        Path().apply {
+            moveTo(18f, 2f)
+            lineTo(32f, 10f)
+            lineTo(32f, 26f)
+            lineTo(18f, 34f)
+            lineTo(4f, 26f)
+            lineTo(4f, 10f)
+            close()
+        }
+    }
+    val bookOutline = remember {
+        Path().apply {
+            moveTo(10f, 12f)
+            lineTo(18f, 14f)
+            lineTo(26f, 12f)
+            lineTo(26f, 23f)
+            lineTo(18f, 25f)
+            lineTo(10f, 23f)
+            close()
+        }
+    }
+    Canvas(modifier = modifier) {
+        scale(scaleX = size.width / 36f, scaleY = size.height / 36f, pivot = Offset.Zero) {
+            drawPath(vaultOutline, ColorInk, style = Stroke(width = 1.8f))
+            drawPath(bookOutline, ColorInk, style = Stroke(width = 1.8f))
+            drawLine(ColorInk, Offset(18f, 14f), Offset(18f, 25f), strokeWidth = 1.8f, cap = StrokeCap.Round)
+        }
+    }
+}
+
+@Composable
+private fun PhoneBrandChip(label: String) {
+    Box(
+        modifier = Modifier
+            .background(Color.White.copy(alpha = 0.06f), RoundedCornerShape(50))
+            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(50))
+            .padding(horizontal = 10.dp, vertical = 5.dp),
+        contentAlignment = Alignment.Center,
+    ) {
         Text(
             text = label,
             fontFamily = DmSansFamily,
-            fontWeight = FontWeight.Normal,
+            fontWeight = FontWeight.Medium,
             fontSize = 11.sp,
-            color = ColorTextOnDarkSecondary,
+            color = ColorTextOnDark,
         )
     }
 }
@@ -567,13 +592,7 @@ private fun LeftBrandPanel(modifier: Modifier = Modifier) {
                     ),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = "E",
-                    fontFamily = PlayfairDisplayFamily,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 28.sp,
-                    color = ColorInk,
-                )
+                EduVaultMark(modifier = Modifier.size(32.dp))
             }
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -590,18 +609,9 @@ private fun LeftBrandPanel(modifier: Modifier = Modifier) {
             Spacer(modifier = Modifier.height(10.dp))
 
             Text(
-                text = buildAnnotatedString {
-                    append("Nơi lưu giữ\n")
-                    withStyle(
-                        SpanStyle(
-                            fontStyle = FontStyle.Italic,
-                            color = ColorAmber,
-                            fontFamily = PlayfairDisplayFamily,
-                        )
-                    ) { append("mọi kiến thức") }
-                },
+                text = "Không gian đào tạo nhân sự mới",
                 fontFamily = PlayfairDisplayFamily,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.SemiBold,
                 fontSize = 22.sp,
                 lineHeight = 30.sp,
                 color = ColorTextOnDark,
@@ -621,8 +631,8 @@ private fun LeftBrandPanel(modifier: Modifier = Modifier) {
             Spacer(modifier = Modifier.height(28.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                BrandStat(number = "500+", label = "Tài liệu")
-                BrandStat(number = "12K+", label = "Sinh viên")
+                BrandStat(number = "NỘI BỘ", label = "Học liệu")
+                BrandStat(number = "Quiz", label = "Tự kiểm tra")
             }
         }
     }
@@ -684,21 +694,9 @@ private fun LoginFormPanel(
     ) {
         // ── Heading ───────────────────────────────────────────────────────
         Text(
-            text = "Chào mừng",
+            text = "Chào mừng trở lại",
             fontFamily = PlayfairDisplayFamily,
-            fontWeight = FontWeight.Bold,
-            fontSize = titleFontSize,
-            color = ColorInk,
-        )
-        Text(
-            text = buildAnnotatedString {
-                append("trở ")
-                withStyle(SpanStyle(fontStyle = FontStyle.Italic, color = ColorAmberDark)) {
-                    append("lại")
-                }
-            },
-            fontFamily = PlayfairDisplayFamily,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.SemiBold,
             fontSize = titleFontSize,
             color = ColorInk,
         )
@@ -706,7 +704,7 @@ private fun LoginFormPanel(
         Spacer(modifier = Modifier.height(6.dp))
 
         Text(
-            text = "Đăng nhập để tiếp tục học tập",
+            text = "Đăng nhập để tiếp tục chương trình đào tạo",
             fontFamily = DmSansFamily,
             fontWeight = FontWeight.Normal,
             fontSize = subtitleFontSize,
@@ -905,7 +903,7 @@ private fun LoginTextField(
                     text = placeholder,
                     fontFamily = DmSansFamily,
                     fontSize = 14.sp,
-                    color = ColorBorder,
+                    color = ColorTextOnLightSecondary,
                 )
             },
             leadingIcon = leadingIcon,

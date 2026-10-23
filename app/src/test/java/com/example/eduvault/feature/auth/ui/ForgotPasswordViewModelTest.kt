@@ -198,7 +198,7 @@ class ForgotPasswordViewModelTest {
         assertTrue(state.isRealLinkValid)
         assertEquals("test@example.com", state.verifiedEmail)
         assertEquals(oobCode, state.oobCode)
-        assertEquals("888888", state.otp)
+        assertEquals("", state.otp)
         assertFalse(state.isLoading)
     }
 
@@ -253,7 +253,7 @@ class ForgotPasswordViewModelTest {
         
         val state = viewModel.uiState.value
         assertTrue(state.hasAttemptedVerify)
-        assertEquals("Vui lòng nhập mã OTP", state.otpError)
+        assertEquals("Vui lòng mở hoặc dán liên kết đặt lại mật khẩu trong email để tiếp tục.", state.errorMessage)
         assertFalse(state.isVerifySuccess)
     }
 
@@ -263,7 +263,7 @@ class ForgotPasswordViewModelTest {
         viewModel.onVerifyOtpClick()
         
         val state = viewModel.uiState.value
-        assertEquals("Mã OTP phải có đủ 6 chữ số", state.otpError)
+        assertEquals("Vui lòng mở hoặc dán liên kết đặt lại mật khẩu trong email để tiếp tục.", state.errorMessage)
         assertFalse(state.isVerifySuccess)
     }
 
@@ -273,7 +273,7 @@ class ForgotPasswordViewModelTest {
         viewModel.onVerifyOtpClick()
         
         val state = viewModel.uiState.value
-        assertEquals("Mã OTP chỉ được chứa chữ số", state.otpError)
+        assertEquals("Vui lòng mở hoặc dán liên kết đặt lại mật khẩu trong email để tiếp tục.", state.errorMessage)
         assertFalse(state.isVerifySuccess)
     }
 
@@ -282,8 +282,8 @@ class ForgotPasswordViewModelTest {
         viewModel.onOtpChange("123456")
         viewModel.onVerifyOtpClick()
         
-        runCurrent() // Runs up to the 1200ms delay suspension point
-        assertTrue(viewModel.uiState.value.isLoading)
+        runCurrent()
+        assertFalse(viewModel.uiState.value.isLoading)
         
         advanceTimeBy(1200)
         runCurrent()
@@ -324,5 +324,17 @@ class ForgotPasswordViewModelTest {
         
         viewModel.onDismissError()
         assertNull(viewModel.uiState.value.errorMessage)
+    }
+
+    @Test fun pastedOpaqueLinkDoesNotCrashOrKeepVerifiedAccess() = runTest(mainDispatcherRule.testDispatcher) {
+        viewModel.onLinkInputChange("https://example.com/?oobCode=valid")
+        runCurrent()
+        assertTrue(viewModel.uiState.value.isRealLinkValid)
+        viewModel.onLinkInputChange("mailto:test@example.com")
+        runCurrent()
+        assertFalse(viewModel.uiState.value.isRealLinkValid)
+        assertNull(viewModel.uiState.value.oobCode)
+        viewModel.onVerifyOtpClick()
+        assertFalse(viewModel.uiState.value.isVerifySuccess)
     }
 }

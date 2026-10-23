@@ -6,30 +6,31 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 
 // ─── Light Color Scheme (mặc định dùng cho app) ──────────────────────────────
 private val LightColorScheme = lightColorScheme(
-    primary = ColorAmber,
-    onPrimary = ColorInk,
-    primaryContainer = ColorAmberLight,
-    onPrimaryContainer = ColorInk,
+    primary = ColorNavyDark,
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFF1F5F9),
+    onPrimaryContainer = ColorNavyDark,
 
-    secondary = ColorForest,
-    onSecondary = ColorTextOnDark,
-    secondaryContainer = ColorForestLight,
-    onSecondaryContainer = ColorInk,
+    secondary = ColorGreenNeon,
+    onSecondary = Color.White,
+    secondaryContainer = ColorSuccessBg,
+    onSecondaryContainer = ColorSuccessText,
 
-    background = ColorPaper,
+    background = ColorSlateBackground,
     onBackground = ColorTextOnLight,
 
-    surface = ColorCream,
+    surface = ColorSurfaceWhite,
     onSurface = ColorTextOnLight,
-    surfaceVariant = ColorBorder,
+    surfaceVariant = ColorBorderLight,
     onSurfaceVariant = ColorTextOnLightSecondary,
 
     outline = ColorBorder,
     error = ColorError,
-    onError = ColorTextOnDark,
+    onError = Color.White,
 )
 
 // ─── Dark Color Scheme ────────────────────────────────────────────────────────

@@ -82,7 +82,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.eduvault.core.theme.ColorAmber
 import com.example.eduvault.core.theme.ColorAmberDark
@@ -540,7 +540,7 @@ private fun ForgotPasswordLeftPanel(
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = "Đừng lo! Nhập địa chỉ email bạn đã đăng ký, chúng tôi sẽ gửi mã xác nhận để khôi phục tài khoản.",
+                            text = "Nhập địa chỉ email đã đăng ký để nhận liên kết đặt lại mật khẩu.",
                             fontFamily = DmSansFamily,
                             fontSize = 12.sp,
                             lineHeight = 18.sp,
@@ -567,7 +567,7 @@ private fun ForgotPasswordLeftPanel(
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = "Mã OTP gồm 6 chữ số đã được gửi đến hộp thư email của bạn. Mã có hiệu lực trong 5 phút.",
+                            text = "Mở liên kết trong email để đặt lại mật khẩu, hoặc dán liên kết vào đây để tiếp tục trong ứng dụng.",
                             fontFamily = DmSansFamily,
                             fontSize = 12.sp,
                             lineHeight = 18.sp,
@@ -627,7 +627,7 @@ private fun ForgotPasswordStepIndicator(isOtpSent: Boolean) {
         Spacer(modifier = Modifier.width(8.dp))
 
         Text(
-            text = if (!isOtpSent) "Nhập email" else "Xác nhận OTP",
+            text = if (!isOtpSent) "Nhập email" else "Xác minh liên kết",
             fontFamily = DmSansFamily,
             fontSize = 11.sp,
             color = ColorTextOnDarkSecondary,
@@ -737,7 +737,7 @@ private fun EmailStepContent(
         Spacer(modifier = Modifier.height(6.dp))
 
         Text(
-            text = "Nhập email đã đăng ký để nhận mã xác nhận",
+            text = "Nhập email đã đăng ký để nhận liên kết đặt lại mật khẩu",
             fontFamily = DmSansFamily,
             fontWeight = FontWeight.Normal,
             fontSize = if (isCompact) 12.sp else 13.sp,
@@ -799,7 +799,7 @@ private fun EmailStepContent(
                 CircularProgressIndicator(modifier = Modifier.size(20.dp), color = ColorInk, strokeWidth = 2.dp)
             } else {
                 Text(
-                    text = "Gửi mã xác nhận",
+                    text = "Gửi liên kết khôi phục",
                     fontFamily = DmSansFamily,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 15.sp,
@@ -881,7 +881,7 @@ private fun OtpStepContent(
 
         Text(
             text = buildAnnotatedString {
-                append("Mã OTP đã gửi đến ")
+                append("Liên kết khôi phục đã gửi đến ")
                 withStyle(SpanStyle(color = ColorAmberDark, fontWeight = FontWeight.SemiBold)) {
                     append(uiState.email)
                 }
@@ -894,60 +894,12 @@ private fun OtpStepContent(
 
         Spacer(modifier = Modifier.height(28.dp))
 
-        // ── OTP field ─────────────────────────────────────────────────────
-        AuthTextField(
-            value = uiState.otp,
-            onValueChange = onOtpChange,
-            label = "Mã OTP (Chế độ Demo: nhập 6 số bất kỳ)",
-            placeholder = "••••••",
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Outlined.Lock,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-            },
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.NumberPassword,
-                imeAction = ImeAction.Done,
-            ),
-            keyboardActions = KeyboardActions(
-                onDone = {
-                    focusManager.clearFocus()
-                    onVerifyOtpClick()
-                }
-            ),
-            isError = uiState.hasAttemptedVerify && uiState.otpError != null && !uiState.isRealLinkValid,
-            errorMessage = uiState.otpError,
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // ── Chia cách ─────────────────────────────────────────────────────
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(modifier = Modifier.weight(1f).height(1.dp).background(ColorBorder.copy(alpha = 0.5f)))
-            Text(
-                text = " HOẶC DÁN LINK EMAIL THẬT ",
-                fontFamily = JetBrainsMonoFamily,
-                fontSize = 9.sp,
-                color = ColorTextOnLightSecondary,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.padding(horizontal = 8.dp)
-            )
-            Box(modifier = Modifier.weight(1f).height(1.dp).background(ColorBorder.copy(alpha = 0.5f)))
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
         // ── Ô dán Link thật ────────────────────────────────────────────────
         AuthTextField(
             value = uiState.linkInput,
             onValueChange = onLinkInputChange,
-            label = "Liên kết đặt lại mật khẩu (Firebase Reset Link)",
-            placeholder = "Dán liên kết khôi phục từ Email để đặt lại thật...",
+            label = "Liên kết đặt lại mật khẩu",
+            placeholder = "Dán liên kết khôi phục từ email",
             leadingIcon = {
                 Icon(
                     imageVector = Icons.Outlined.Email,
@@ -1036,7 +988,7 @@ private fun OtpStepContent(
                 CircularProgressIndicator(modifier = Modifier.size(20.dp), color = ColorInk, strokeWidth = 2.dp)
             } else {
                 Text(
-                    text = "Xác nhận mã OTP",
+                    text = "Tiếp tục đặt mật khẩu",
                     fontFamily = DmSansFamily,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 15.sp,
@@ -1057,7 +1009,7 @@ private fun OtpStepContent(
                 .padding(horizontal = 14.dp, vertical = 10.dp)
         ) {
             Text(
-                text = "🔒  Mã OTP có hiệu lực trong 5 phút. Không chia sẻ mã với bất kỳ ai.",
+                text = "Không chia sẻ liên kết khôi phục với người khác.",
                 fontFamily = DmSansFamily,
                 fontSize = 11.sp,
                 color = ColorAmberDark,

@@ -17,7 +17,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-import com.example.eduvault.domain.repository.CategoryRepository
 import com.example.eduvault.domain.usecase.GetPublishedDocumentsUseCase
 
 /**
@@ -30,7 +29,6 @@ import com.example.eduvault.domain.usecase.GetPublishedDocumentsUseCase
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val authRepository: AuthRepository,
-    private val categoryRepository: CategoryRepository,
     private val aiRepository: AiRepository,
     private val notificationRepository: NotificationRepository,
     private val getPublishedDocuments: GetPublishedDocumentsUseCase
@@ -38,9 +36,6 @@ class HomeViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
-
-    private val _topicTags = MutableStateFlow<List<TopicTag>>(emptyList())
-    val dynamicTopicTags: StateFlow<List<TopicTag>> = _topicTags.asStateFlow()
 
     private val _recentDocsFlow = MutableStateFlow<List<RecentDoc>>(emptyList())
     val recentDocs: StateFlow<List<RecentDoc>> = _recentDocsFlow.asStateFlow()
@@ -60,41 +55,35 @@ class HomeViewModel @Inject constructor(
                 val guestNotifications = listOf(
                     EduNotification(
                         id = "guest_notif_01",
-                        title = "🏆 Thành tựu mới! (Guest Mode)",
-                        content = "Chào mừng bạn ghé thăm EduVault! Đăng nhập để chia sẻ tài liệu và lưu trữ tiến trình học tập không giới hạn.",
+                        title = "Chào mừng đến với EduVault",
+                        content = "Chào mừng bạn đến EduVault! Đăng nhập để truy cập học liệu đào tạo và lưu tiến độ của bạn.",
                         timestamp = currentTime - 5 * 60_000, // 5 phút trước
                         userId = "guest_user",
                         type = NotificationType.SYSTEM
                     ),
                     EduNotification(
                         id = "guest_notif_02",
-                        title = "🧠 Trải nghiệm AI miễn phí",
-                        content = "EduVault hỗ trợ Guest dùng thử tab Tóm tắt AI và Chatbot học tập chung hoàn toàn miễn phí!",
+                        title = "Học liệu đào tạo nội bộ",
+                        content = "Đăng nhập để đọc học liệu và tham gia lộ trình đào tạo.",
                         timestamp = currentTime - 2 * 3600_000, // 2 giờ trước
                         userId = "guest_user",
                         type = NotificationType.AI
                     )
                 )
-                _notifications.value = guestNotifications
+                updateNotifications(guestNotifications, showActivity = false)
             } else {
-                // Đối với người dùng đã đăng nhập:
-                // 1. Đảm bảo đã chèn dữ liệu mẫu nếu Firestore trống
                 notificationRepository.ensureDefaultNotifications(userId)
-                // 2. Fetch thông báo động thực tế từ Firestore
-                notificationRepository.getNotifications(userId)
-                    .onSuccess { list ->
-                        _notifications.value = list
-                    }
-                    .onFailure {
-                        _notifications.value = emptyList()
-                    }
+                updateNotifications(
+                    notificationRepository.getNotifications(userId).getOrDefault(emptyList()),
+                    showActivity = true,
+                )
             }
         }
     }
 
     // ─── StudyAI Chatbot state management ─────────────────────────────────────
     private val _chatMessages = MutableStateFlow<List<AiChatMessage>>(listOf(
-        AiChatMessage(false, "Chào bạn! Mình là Trợ lý Học tập StudyAI. Bạn cần mình giải đáp thắc mắc, tóm tắt tài liệu hay tạo câu hỏi ôn tập nào hôm nay? 🧠")
+        AiChatMessage(false, "Chào bạn! Mình là Trợ lý đào tạo StudyAI. Bạn muốn làm rõ kiến thức kỹ thuật, tóm tắt tài liệu hay tạo câu hỏi luyện tập hôm nay? 🧠")
     ))
     val chatMessages: StateFlow<List<AiChatMessage>> = _chatMessages.asStateFlow()
 
@@ -141,51 +130,26 @@ class HomeViewModel @Inject constructor(
 
     init {
         loadCurrentUser()
-        loadTopicTags()
+    }
+
+    fun onProfileUpdated(user: com.example.eduvault.domain.model.User) {
+        _uiState.update { it.copy(userName = user.fullName, university = user.university,
+            authState = AuthState.Authenticated(user)) }
     }
 
     fun loadCurrentUser() {
         viewModelScope.launch {
-            authRepository.getCurrentUser()
-                .onSuccess { user ->
-                    if (user != null) {
-                        _uiState.update {
-                            it.copy(
-                                authState = AuthState.Authenticated(user),
-                                userName = user.fullName.ifBlank { "Sinh viên" },
-                                university = user.university.ifBlank { "ĐH Kinh tế TP.HCM" }
-                            )
-                        }
-                        loadNotifications(user.uid)
-                        loadRecentDocuments()
-                        loadDynamicActivity(user.uid)
-                    } else {
-                        // Chưa đăng nhập — chế độ khách
-                        _uiState.update {
-                            it.copy(
-                                authState = AuthState.Guest,
-                                userName = "Bạn",
-                                university = "Nền tảng chia sẻ tài liệu học thuật"
-                            )
-                        }
-                        loadNotifications("guest_user")
-                        loadRecentDocuments()
-                        loadDynamicActivity("guest_user")
-                    }
-                }
-                .onFailure {
-                    // Lỗi mạng/Firebase — fallback về Guest
-                    _uiState.update {
-                        it.copy(
-                            authState = AuthState.Guest,
-                            userName = "Bạn",
-                            university = "Nền tảng chia sẻ tài liệu học thuật"
-                        )
-                    }
-                    loadNotifications("guest_user")
-                    loadRecentDocuments()
-                    loadDynamicActivity("guest_user")
-                }
+            val user = authRepository.getCurrentUser().getOrNull()
+            _uiState.update {
+                it.copy(
+                    authState = user?.let(AuthState::Authenticated) ?: AuthState.Guest,
+                    userName = user?.fullName?.takeIf(String::isNotBlank) ?: "Bạn",
+                    university = user?.university?.takeIf(String::isNotBlank)
+                        ?: "Chương trình đào tạo nhân sự mới",
+                )
+            }
+            loadNotifications(user?.uid ?: "guest_user")
+            loadRecentDocuments()
         }
     }
 
@@ -210,9 +174,6 @@ class HomeViewModel @Inject constructor(
                     } else {
                         doc.views.toIntOrNull() ?: 0
                     }
-                    val savesInt = (doc.rating * 10).toInt()
-                    val pagesInt = doc.quantityLabel.replace(" tr", "").replace(" câu", "").replace(" slides", "").toIntOrNull() ?: 15
-                    
                     RecentDoc(
                         id = doc.id,
                         title = doc.title,
@@ -220,8 +181,6 @@ class HomeViewModel @Inject constructor(
                         type = type,
                         emoji = emoji,
                         views = viewsInt,
-                        saves = savesInt,
-                        pages = pagesInt,
                         bgIndex = doc.bgIndex,
                         fileName = doc.fileName,
                         downloadUrl = doc.downloadUrl,
@@ -232,85 +191,31 @@ class HomeViewModel @Inject constructor(
                     )
                 }
                 
-                // Calculate actual dynamic categories counts from Firestore documents
-                val tags = listOf(
-                    TopicTag("Kinh tế học", firestoreDocs.count { it.courseCode.contains("EC", ignoreCase = true) || it.title.contains("kinh tế", ignoreCase = true) }),
-                    TopicTag("Marketing", firestoreDocs.count { it.courseCode.contains("MKT", ignoreCase = true) }),
-                    TopicTag("Kế toán", firestoreDocs.count { it.courseCode.contains("ACC", ignoreCase = true) }),
-                    TopicTag("Pháp luật", firestoreDocs.count { it.courseCode.contains("LAW", ignoreCase = true) }),
-                    TopicTag("Thống kê", firestoreDocs.count { it.courseCode.contains("STAT", ignoreCase = true) }),
-                    TopicTag("Tài chính", firestoreDocs.count { it.courseCode.contains("FIN", ignoreCase = true) || it.title.contains("tài chính", ignoreCase = true) })
-                )
-                _topicTags.update { tags }
-                
-                if (converted.isNotEmpty()) {
-                    _recentDocsFlow.value = converted.take(6)
-                } else {
-                    _recentDocsFlow.value = emptyList()
-                }
+                _recentDocsFlow.value = converted.take(6)
             }.onFailure {
                 _recentDocsFlow.value = emptyList()
             }
         }
     }
 
-    fun loadDynamicActivity(userId: String) {
-        viewModelScope.launch {
-            if (userId.isBlank() || userId == "guest_user") {
-                _activityItemsFlow.value = emptyList()
-                return@launch
+    private fun updateNotifications(notifications: List<EduNotification>, showActivity: Boolean) {
+        _notifications.value = notifications
+        _uiState.update { it.copy(unreadNotificationCount = notifications.count { notice -> !notice.isRead }) }
+        _activityItemsFlow.value = if (showActivity) notifications.take(5).map { notification ->
+            val type = when (notification.type) {
+                NotificationType.AI -> if (notification.title.contains("Tóm tắt", ignoreCase = true)
+                    || notification.title.contains("Summary", ignoreCase = true)) ActivityType.SLIDE else ActivityType.QUIZ
+                NotificationType.ACHIEVEMENT -> ActivityType.QUIZ
+                NotificationType.SYSTEM, NotificationType.COMMUNITY -> ActivityType.NOTE
             }
-            
-            notificationRepository.getNotifications(userId).onSuccess { notifications ->
-                val converted = notifications.map { notif ->
-                    val (type, progress) = when (notif.type) {
-                        NotificationType.AI -> {
-                            if (notif.title.contains("Tóm tắt", ignoreCase = true) || notif.title.contains("Summary", ignoreCase = true)) {
-                                Pair(ActivityType.SLIDE, 0.50f)
-                            } else {
-                                Pair(ActivityType.QUIZ, 0.85f)
-                            }
-                        }
-                        NotificationType.SYSTEM -> Pair(ActivityType.NOTE, 1.0f)
-                        NotificationType.ACHIEVEMENT -> Pair(ActivityType.QUIZ, 1.0f)
-                        NotificationType.COMMUNITY -> Pair(ActivityType.NOTE, 0.70f)
-                    }
-                    
-                    val timeStr = notif.getFormattedTime()
-                    val cleanTime = if (timeStr.isBlank()) "Vừa xong" else timeStr
-                    
-                    ActivityItem(
-                        id = notif.id,
-                        title = notif.title,
-                        subtitle = notif.content,
-                        time = cleanTime,
-                        type = type,
-                        progress = progress
-                    )
-                }
-                
-                if (converted.isNotEmpty()) {
-                    _activityItemsFlow.value = converted.take(5)
-                } else {
-                    _activityItemsFlow.value = emptyList()
-                }
-            }.onFailure {
-                _activityItemsFlow.value = emptyList()
-            }
-        }
-    }
-
-    private fun loadTopicTags() {
-        viewModelScope.launch {
-            categoryRepository.getCategories().onSuccess { cats ->
-                val tagsList = cats.map { cat ->
-                    TopicTag(cat.name, cat.count)
-                }
-                _topicTags.update { tagsList }
-            }.onFailure {
-                _topicTags.update { emptyList() }
-            }
-        }
+            ActivityItem(
+                id = notification.id,
+                title = notification.title,
+                subtitle = notification.content,
+                time = notification.getFormattedTime().ifBlank { "Vừa xong" },
+                type = type,
+            )
+        } else emptyList()
     }
 
     // ─── Event handlers ───────────────────────────────────────────────────────

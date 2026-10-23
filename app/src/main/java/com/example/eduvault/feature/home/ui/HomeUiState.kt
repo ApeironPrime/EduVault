@@ -6,8 +6,9 @@ import com.example.eduvault.domain.model.AuthState
  * Trạng thái UI của màn hình Home.
  */
 data class HomeUiState(
-    val userName: String = "Bạn",
-    val university: String = "Nền tảng chia sẻ tài liệu học thuật",
+    val userName: String = "",
+    val university: String = "",
+    val unreadNotificationCount: Int = 0,
     val followCount: Int = 0,
     val uploadCount: Int = 0,
     val savedCount: Int = 0,
@@ -29,8 +30,6 @@ data class RecentDoc(
     val type: DocType,
     val emoji: String,
     val views: Int,
-    val saves: Int,
-    val pages: Int,
     val bgIndex: Int = 0,
     val fileName: String = "",
     val downloadUrl: String = "",
@@ -60,6 +59,3 @@ data class ActivityItem(
 enum class ActivityType {
     NOTE, QUIZ, SLIDE
 }
-
-/** Data class cho tag */
-data class TopicTag(val label: String, val count: Int)

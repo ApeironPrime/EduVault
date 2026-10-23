@@ -15,10 +15,35 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == userId;
     }
 
+    function isMentor() {
+      return signedIn() && request.auth.token.keys().hasAll(['mentor'])
+        && request.auth.token.mentor == true
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isBlocked == false;
+    }
+    function assignedToMentor(userId) {
+      return isMentor() && request.auth.uid != userId
+        && exists(/databases/$(database)/documents/mentorAssignments/$(request.auth.uid)/learners/$(userId));
+    }
+    function assignedProgram(userId, programId) {
+      return assignedToMentor(userId)
+        && get(/databases/$(database)/documents/mentorAssignments/$(request.auth.uid)/learners/$(userId)).data.programId == programId;
+    }
+    match /mentorAssignments/{mentorId}/learners/{learnerId} {
+      allow read: if isMentor() && request.auth.uid == mentorId;
+      // Provisioning is performed only by the project owner/Admin SDK.
+      allow write: if false;
+    }
+
     match /users/{userId} {
-      allow get: if isOwner(userId) || isAdmin();
+      allow get: if isOwner(userId) || isAdmin() || assignedToMentor(userId);
       allow list: if isAdmin();
       allow create: if isOwner(userId)
+        && request.resource.data.keys().hasOnly([
+          'uid', 'name', 'email', 'university', 'avatarUrl', 'documentCredits',
+          'uploadCount', 'createdAt', 'role', 'isBlocked', 'unlockedDocuments',
+          'quizCount', 'quizAverageScore', 'totalXp', 'savedDocuments'
+        ])
         && request.resource.data.uid == userId
         && request.resource.data.role == 'user'
         && request.resource.data.isBlocked == false
@@ -69,6 +94,126 @@ service cloud.firestore {
       allow read: if signedIn();
       // Category administration is server-side; Admin SDK bypasses Rules.
       allow write: if false;
+    }
+
+    match /trainingPrograms/{programId} {
+      allow read: if signedIn();
+      // Programme definitions are owned by the training backend.
+      allow write: if false;
+    }
+
+    match /users/{userId}/trainingAssignments/{programId} {
+      allow read: if isOwner(userId) || isAdmin() || assignedProgram(userId, programId);
+      function learner() {
+        return isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && get(/databases/$(database)/documents/users/$(userId)).data.isBlocked == false;
+      }
+      function program() {
+        return get(/databases/$(database)/documents/trainingPrograms/$(programId)).data;
+      }
+      // A learner may enroll with zero progress, never grant completion.
+      allow create: if learner() && program().active == true
+        && request.resource.data.keys().hasOnly([
+          'userId', 'programId', 'completedModuleIds', 'completionPercent', 'status',
+          'assignedAt', 'dueAt', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.userId == userId
+        && request.resource.data.programId == programId
+        && request.resource.data.completedModuleIds == []
+        && request.resource.data.completionPercent == 0
+        && request.resource.data.status == 'IN_PROGRESS'
+        && request.resource.data.assignedAt == request.time
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.dueAt >= request.time + duration.value(29, 'd')
+        && request.resource.data.dueAt <= request.time + duration.value(31, 'd');
+
+      function validEvidence() {
+        let evidence = request.resource.data.evidence;
+        return evidence is map
+          && evidence.keys().hasOnly(['moduleId', 'link', 'note', 'status', 'submittedAt'])
+          && evidence.moduleId in program().moduleIds
+          && !(evidence.moduleId in resource.data.completedModuleIds)
+          && resource.data.completedModuleIds.hasAll(program().modulePrerequisites[evidence.moduleId])
+          && evidence.status == 'PENDING'
+          && evidence.link is string && evidence.link.size() <= 2048
+          && evidence.link.matches('https://[a-zA-Z0-9.-]+(:[0-9]+)?([/?#].*)?')
+          && evidence.note is string && evidence.note.size() <= 2000
+          && evidence.submittedAt == request.time;
+      }
+      allow update: if learner()
+        && resource.data.userId == userId && resource.data.programId == programId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['evidence', 'updatedAt'])
+        && request.resource.data.updatedAt == request.time
+        && validEvidence();
+      function validMentorReview() {
+        let old = resource.data;
+        let next = request.resource.data;
+        let receipt = next.evidence;
+        let ids = program().moduleIds;
+        let completed = old.completedModuleIds.concat([old.evidence.moduleId]);
+        return old.evidence.status == 'PENDING'
+          && old.evidence.moduleId in ids
+          && !(old.evidence.moduleId in old.completedModuleIds)
+          && old.completedModuleIds.hasAll(program().modulePrerequisites[old.evidence.moduleId])
+          && next.diff(old).affectedKeys().hasOnly(['evidence', 'reviewedEvidence', 'completedModuleIds', 'completionPercent', 'status', 'updatedAt'])
+          && validReviewArchive()
+          && next.updatedAt == request.time
+          && receipt.keys().hasOnly(['moduleId', 'link', 'note', 'status', 'submittedAt', 'feedback', 'reviewedBy', 'reviewedAt'])
+          && receipt.diff(old.evidence).affectedKeys().hasOnly(['status', 'feedback', 'reviewedBy', 'reviewedAt'])
+          && receipt.reviewedBy == request.auth.uid && receipt.reviewedAt == request.time
+          && receipt.feedback is string && receipt.feedback.size() <= 2000
+          && ((receipt.status == 'APPROVED'
+            && next.completedModuleIds == completed
+            && next.completionPercent == int(completed.size() * 100 / ids.size())
+            && next.status == (completed.size() == ids.size() ? 'COMPLETED' : 'IN_PROGRESS'))
+          || (receipt.status == 'REJECTED' && receipt.feedback.size() > 0
+            && next.completedModuleIds == old.completedModuleIds
+            && next.completionPercent == old.completionPercent && next.status == old.status));
+      }
+      allow update: if assignedProgram(userId, programId) && validMentorReview();
+      function validReviewArchive() {
+        let previous = resource.data.get('reviewedEvidence', {});
+        let archive = request.resource.data.get('reviewedEvidence', {});
+        return archive == previous || (archive is map
+          && archive.diff(previous).affectedKeys().hasOnly([resource.data.evidence.moduleId])
+          && archive[resource.data.evidence.moduleId] == request.resource.data.evidence);
+      }
+      function validTaskEdit() {
+        let next = request.resource.data;
+        let id = next.taskEditModuleId;
+        let oldTasks = resource.data.get('taskDefinitions', {});
+        let tasks = next.taskDefinitions;
+        let task = tasks.get(id, {});
+        let pending = resource.data.get('evidence', {});
+        return next.diff(resource.data).affectedKeys().hasOnly(['taskDefinitions', 'taskEditModuleId', 'updatedAt'])
+          && next.updatedAt == request.time
+          && id in program().moduleIds && !(id in resource.data.completedModuleIds)
+          && !(pending.get('moduleId', '') == id && pending.get('status', '') == 'PENDING')
+          && tasks is map && tasks.keys().hasOnly(program().moduleIds)
+          && tasks.diff(oldTasks).affectedKeys().hasOnly([id])
+          && (!(id in tasks) || (task is map
+            && task.keys().hasAll(['title', 'instructions', 'dueDate', 'resourceLink', 'updatedBy', 'updatedAt'])
+            && task.keys().hasOnly(['title', 'instructions', 'dueDate', 'resourceLink', 'updatedBy', 'updatedAt'])
+            && task.title is string && task.title.size() >= 3 && task.title.size() <= 160
+            && task.instructions is string && task.instructions.size() >= 10 && task.instructions.size() <= 4000
+            && task.dueDate is string && (task.dueDate == '' || task.dueDate.matches('[0-9]{2}/[0-9]{2}/[0-9]{4}'))
+            && task.resourceLink is string && task.resourceLink.size() <= 2048
+            && (task.resourceLink == '' || task.resourceLink.matches('https://[a-zA-Z0-9.-]+(:[0-9]+)?([/?#].*)?'))
+            && task.updatedBy == request.auth.uid && task.updatedAt == request.time));
+      }
+      allow update: if assignedProgram(userId, programId) && validTaskEdit();
+      // Mentor/admin access uses a trusted custom claim; clients cannot grant it.
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['completedModuleIds', 'completionPercent', 'status', 'updatedAt'])
+        && request.resource.data.completedModuleIds is list
+        && request.resource.data.completedModuleIds.hasOnly(program().moduleIds)
+        && request.resource.data.completionPercent is int
+        && request.resource.data.completionPercent >= 0 && request.resource.data.completionPercent <= 100
+        && request.resource.data.status in ['IN_PROGRESS', 'COMPLETED']
+        && request.resource.data.updatedAt == request.time;
     }
 
     match /quizzes/{quizId} {

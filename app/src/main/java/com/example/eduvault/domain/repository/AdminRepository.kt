@@ -1,6 +1,6 @@
 package com.example.eduvault.domain.repository
 
-import com.example.eduvault.feature.library.ui.LibraryDoc
+import com.example.eduvault.domain.model.LibraryDocument
 import com.example.eduvault.domain.model.User
 
 /**
@@ -16,7 +16,7 @@ interface AdminRepository {
     /**
      * Lấy danh sách tài liệu đang ở trạng thái PENDING chờ kiểm duyệt.
      */
-    suspend fun getPendingDocuments(): Result<List<LibraryDoc>>
+    suspend fun getPendingDocuments(): Result<List<LibraryDocument>>
 
     /**
      * Phê duyệt tài liệu (status = APPROVED).
@@ -26,7 +26,7 @@ interface AdminRepository {
     /**
      * Lấy danh sách tài liệu bị người dùng tố cáo (reportCount > 0).
      */
-    suspend fun getReportedDocuments(): Result<List<LibraryDoc>>
+    suspend fun getReportedDocuments(): Result<List<LibraryDocument>>
 
     /**
      * Bác bỏ tố cáo của tài liệu (reportCount = 0).

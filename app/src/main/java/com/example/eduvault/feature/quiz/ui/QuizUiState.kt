@@ -1,38 +1,15 @@
 package com.example.eduvault.feature.quiz.ui
 
-/**
- * Độ khó của bộ đề trắc nghiệm
- */
-enum class Difficulty(val label: String) {
-    EASY("Dễ"),
-    MEDIUM("T.Bình"),
-    HARD("Khó")
-}
+import com.example.eduvault.domain.model.Difficulty
+import com.example.eduvault.domain.model.QuizAnswer
+import com.example.eduvault.domain.model.QuizQuestion
+import com.example.eduvault.domain.model.QuizSet
 
-/**
- * Bộ đề trắc nghiệm (Quiz Set)
- */
-data class QuizSet(
-    val id: String,
-    val subject: String,
-    val title: String,
-    val difficulty: Difficulty,
-    val questionCount: Int,
-    val playCount: String,
-    val isNew: Boolean = false,
-    val bgIndex: Int = 0
-)
-
-/**
- * Người dùng trong bảng xếp hạng (Leaderboard)
- */
-data class LeaderboardUser(
-    val rank: Int,
-    val name: String,
-    val university: String,
-    val score: Int,
-    val isMe: Boolean = false
-)
+// Expose typealiases for backwards compatibility in UI layer
+typealias Difficulty = com.example.eduvault.domain.model.Difficulty
+typealias QuizSet = com.example.eduvault.domain.model.QuizSet
+typealias QuizAnswer = com.example.eduvault.domain.model.QuizAnswer
+typealias QuizQuestion = com.example.eduvault.domain.model.QuizQuestion
 
 /**
  * Thống kê tiến độ luyện tập
@@ -43,25 +20,6 @@ data class QuizProgress(
     val completionRate: Int // e.g. 92%
 )
 
-/**
- * Lựa chọn đáp án trắc nghiệm
- */
-data class QuizAnswer(
-    val key: String, // "A", "B", "C", "D"
-    val text: String
-)
-
-/**
- * Câu hỏi trắc nghiệm
- */
-data class QuizQuestion(
-    val id: String,
-    val text: String,
-    val hint: String = "",
-    val options: List<QuizAnswer>,
-    val correctOption: String, // "A", "B", "C", "D"
-    val explanation: String
-)
 
 /**
  * Các chế độ màn hình trắc nghiệm
@@ -79,11 +37,12 @@ data class QuizUiState(
     val screenMode: QuizScreenMode = QuizScreenMode.DASHBOARD,
     val selectedSubject: String = "Tất cả",
     val isLoading: Boolean = false,
+    val errorMessage: String? = null,
+    val attemptSaveMessage: String? = null,
 
     // Dashboard state
     val quizSets: List<QuizSet> = emptyList(),
     val progress: QuizProgress = QuizProgress(0.0f, 0, 0),
-    val leaderboard: List<LeaderboardUser> = emptyList(),
 
     // Player state
     val activeQuizSet: QuizSet? = null,

@@ -10,7 +10,7 @@ data class UserNote(
     val docId: String = "",
     /** Tiêu đề tài liệu — lưu để hiển thị trên màn danh sách ghi chú */
     val docTitle: String = "",
-    /** Mã môn học của tài liệu */
+    /** Mã kỹ năng/chương trình của tài liệu */
     val docCourseCode: String = "",
     /** Nội dung ghi chú tự do của người dùng */
     val noteContent: String = "",

@@ -18,3 +18,10 @@
 .externalNativeBuild
 .cxx
 local.properties
+/.local-demo-data/
+
+.firebase-backups/
+/.codex-preview/
+
+/firestore-debug.log
+/functions/.env.*

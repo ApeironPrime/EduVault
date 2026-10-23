@@ -1,6 +1,7 @@
 package com.example.eduvault.data.repository
 
 import android.net.Uri
+import com.example.eduvault.BuildConfig
 import com.example.eduvault.domain.model.DocViewerTabsContent
 import com.example.eduvault.domain.model.DocumentPage
 import com.example.eduvault.domain.model.LibraryDocument
@@ -13,7 +14,9 @@ import com.google.firebase.firestore.Query
 import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageMetadata
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
 import javax.inject.Inject
@@ -36,6 +39,7 @@ class DocumentRepositoryImpl @Inject constructor(
         docType: String,
         fileUri: String
     ): Result<Unit> = runCatching {
+        check(!BuildConfig.SPARK_ONLY) { "Bản Spark không hỗ trợ upload file. Hãy nộp bằng chứng bằng link GitHub hoặc Drive." }
         val uid = firebaseAuth.currentUser?.uid ?: error("Bạn cần đăng nhập để tải tài liệu.")
         val localFile = File(fileUri)
         require(localFile.exists() && localFile.isFile) { "Không tìm thấy tệp đã chọn." }
@@ -50,7 +54,7 @@ class DocumentRepositoryImpl @Inject constructor(
 
         storageRef.putFile(Uri.fromFile(localFile), metadata).await()
         try {
-            functions.getHttpsCallable("submitDocument")
+            functions.availableCallable("submitDocument")
                 .call(
                     mapOf(
                         "title" to title.trim(),
@@ -93,7 +97,7 @@ class DocumentRepositoryImpl @Inject constructor(
     }
 
     override suspend fun reportDocument(docId: String): Result<Unit> = runCatching {
-        functions.getHttpsCallable("reportDocument").call(mapOf("documentId" to docId)).await()
+        functions.availableCallable("reportDocument").call(mapOf("documentId" to docId)).await()
         Unit
     }
 
@@ -108,8 +112,70 @@ class DocumentRepositoryImpl @Inject constructor(
     override suspend fun saveDocViewerContent(docId: String, content: DocViewerTabsContent): Result<Unit> =
         Result.failure(IllegalStateException("Nội dung AI chỉ được lưu bởi backend."))
 
+    override suspend fun getCachedSummary(docId: String): Result<String?> = runCatching {
+        val snapshot = firestore.collection("documents").document(docId).get().await()
+        if (snapshot.exists()) {
+            val cachedSummary = snapshot.getString("aiSummary") ?: ""
+            val cachedVersion = snapshot.getLong("aiSummaryVersion") ?: 0L
+            if (cachedSummary.trim().isNotEmpty() && cachedVersion == 1L) {
+                return@runCatching cachedSummary
+            }
+        }
+        null
+    }
+
+    override suspend fun saveCachedSummary(docId: String, summary: String): Result<Unit> = runCatching {
+        firestore.collection("documents").document(docId).update(
+            mapOf(
+                "aiSummary" to summary,
+                "aiSummaryVersion" to 1L
+            )
+        ).await()
+        Unit
+    }
+
+    override suspend fun downloadDocumentPdf(downloadUrl: String, destinationFile: File): Result<File> = withContext(Dispatchers.IO) {
+        runCatching {
+            if (destinationFile.exists() && destinationFile.length() > 0) {
+                return@runCatching destinationFile
+            }
+            val parent = destinationFile.parentFile
+            if (parent != null && !parent.exists()) {
+                parent.mkdirs()
+            }
+            val tempFile = File(destinationFile.absolutePath + ".tmp")
+            if (downloadUrl.startsWith("documents/")) {
+                storage.reference.child(downloadUrl).getFile(tempFile).await()
+            } else if (downloadUrl.startsWith("http://") || downloadUrl.startsWith("https://")) {
+                val url = java.net.URL(downloadUrl)
+                val connection = url.openConnection() as java.net.HttpURLConnection
+                connection.requestMethod = "GET"
+                connection.connectTimeout = 15000
+                connection.readTimeout = 15000
+                connection.doInput = true
+                connection.connect()
+                if (connection.responseCode == java.net.HttpURLConnection.HTTP_OK) {
+                    connection.inputStream.use { input ->
+                        tempFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                } else {
+                    throw IllegalStateException("Lỗi tải tệp: HTTP ${connection.responseCode}")
+                }
+            } else {
+                storage.reference.child(downloadUrl).getFile(tempFile).await()
+            }
+            if (!tempFile.renameTo(destinationFile)) {
+                tempFile.copyTo(destinationFile, overwrite = true)
+                tempFile.delete()
+            }
+            destinationFile
+        }
+    }
+
     override suspend fun deleteDocument(docId: String): Result<Unit> = runCatching {
-        functions.getHttpsCallable("deleteDocument").call(mapOf("documentId" to docId)).await()
+        functions.availableCallable("deleteDocument").call(mapOf("documentId" to docId)).await()
         Unit
     }
 
@@ -127,7 +193,7 @@ class DocumentRepositoryImpl @Inject constructor(
             courseCode = document.getString("courseCode") ?: "",
             title = title,
             type = type,
-            quantityLabel = document.getString("quantityLabel") ?: "Tài liệu cộng đồng",
+            quantityLabel = document.getString("quantityLabel") ?: "Học liệu đào tạo",
             rating = document.getDouble("rating")?.toFloat() ?: 0f,
             views = views,
             bgIndex = title.hashCode().and(Int.MAX_VALUE) % 6,

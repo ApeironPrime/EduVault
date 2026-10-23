@@ -8,7 +8,7 @@ data class LibraryUiState(
     val selectedSubject: String = "Tất cả",
     val selectedDocType: DocTypeFilter = DocTypeFilter.ALL,
     val selectedSort: SortType = SortType.NEWEST,
-    val selectedSchool: String = "Tất cả trường",
+    val selectedSchool: String = "Tất cả đơn vị",
     val currentPage: Int = 1,
     val totalPages: Int = 0,
     val totalCount: Int = 0,

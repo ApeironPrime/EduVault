@@ -187,7 +187,7 @@ fun NotesDialog(
                                     )
                                     Spacer(modifier = Modifier.height(6.dp))
                                     Text(
-                                        text = "Mở bất kỳ tài liệu học tập nào trong thư viện và bấm \"Ghi chú\" để lưu lại những kiến thức quan trọng nhé!",
+                                        text = "Mở một tài liệu đào tạo trong thư viện và bấm \"Ghi chú\" để lưu lại kiến thức quan trọng.",
                                         fontFamily = DmSansFamily,
                                         fontSize = 12.sp,
                                         color = ColorTextOnLightSecondary,

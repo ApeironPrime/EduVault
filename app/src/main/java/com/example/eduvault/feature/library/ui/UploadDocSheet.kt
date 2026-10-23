@@ -100,7 +100,7 @@ class UploadDocViewModel @Inject constructor(
     private fun loadUserUniversity() {
         viewModelScope.launch {
             authRepository.getCurrentUser().onSuccess { user ->
-                _uiState.update { it.copy(userUniversity = user?.university ?: "Tất cả các trường") }
+                _uiState.update { it.copy(userUniversity = user?.university ?: "Đơn vị đào tạo") }
             }
         }
     }
@@ -153,7 +153,7 @@ class UploadDocViewModel @Inject constructor(
     }
 
     /**
-     * Lưu thông tin đăng tải và tích điểm credit
+     * Gửi học liệu để bộ phận đào tạo kiểm duyệt trước khi công bố.
      */
     fun uploadDocument(onSuccess: () -> Unit) {
         val state = _uiState.value
@@ -175,7 +175,7 @@ class UploadDocViewModel @Inject constructor(
                 fileUri = state.selectedFileUri
             ).onSuccess {
                 _uiState.update { it.copy(isUploading = false, isSuccess = true) }
-                // Delay to let users enjoy the success credit animation
+                // Briefly keep the success state visible before closing the sheet.
                 delay(1200)
                 onSuccess()
             }.onFailure { error ->
@@ -298,7 +298,7 @@ fun UploadDocSheet(
                         Spacer(modifier = Modifier.height(8.dp))
 
                         Text(
-                            text = "Cảm ơn đóng góp của bạn! Hệ thống đã tự động cộng +1 lượt xem tài liệu (Credits) vào ví tài khoản của bạn.",
+                            text = "Cảm ơn bạn đã đóng góp! Tài liệu đã được gửi đến bộ phận đào tạo để kiểm duyệt trước khi công bố.",
                             fontFamily = DmSansFamily,
                             fontSize = 13.sp,
                             color = ColorTextOnLightSecondary,
@@ -415,7 +415,7 @@ fun UploadDocSheet(
                         OutlinedTextField(
                             value = uiState.title,
                             onValueChange = viewModel::onTitleChange,
-                            label = { Text("Tiêu đề tài liệu (ví dụ: Tóm tắt Kinh tế vi mô Ch.4)", fontFamily = DmSansFamily) },
+                            label = { Text("Tiêu đề tài liệu (ví dụ: Git Workflow cho Fresher)", fontFamily = DmSansFamily) },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(bottom = 12.dp),

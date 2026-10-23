@@ -2,7 +2,7 @@ package com.example.eduvault.domain.repository
 
 import com.example.eduvault.domain.model.AiChatMessage
 import com.example.eduvault.domain.model.DocViewerTabsContent
-import com.example.eduvault.feature.quiz.ui.QuizQuestion
+import com.example.eduvault.domain.model.QuizQuestion
 
 /**
  * Interface cho AiRepository - Quản lý tương tác với Google Gemini AI.

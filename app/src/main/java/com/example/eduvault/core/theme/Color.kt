@@ -2,40 +2,60 @@ package com.example.eduvault.core.theme
 
 import androidx.compose.ui.graphics.Color
 
-// ─── EduVault Brand Palette ───────────────────────────────────────────────────
-// Màu nền chính: trắng giấy ngà ấm
-val ColorPaper = Color(0xFFFAF8F3)
+// ─── Modern Enterprise Fresher Palette ───────────────────────────────────────
+// Nền tổng thể: Xám khói hiện đại Slate 50 (Bỏ hoàn toàn vàng/be bánh mì kẹp thịt)
+val ColorSlateBackground = Color(0xFFF8FAFC)
+val ColorPaper = Color(0xFFF8FAFC)
+val ColorCream = Color(0xFFF8FAFC)
 
-// Màu chữ/khối đậm: xanh mực đen (Midnight Blue)
-val ColorInk = Color(0xFF1A1A2E)
+// Nền Surface/Card sạch
+val ColorSurfaceWhite = Color(0xFFFFFFFF)
 
-// Màu nhấn chính: vàng mật ong / hổ phách
-val ColorAmber = Color(0xFFE8A020)
-val ColorAmberLight = Color(0xFFF5BC55)
-val ColorAmberDark = Color(0xFFBF7D0E)
+// Thẻ Hero Navy đậm sang trọng
+val ColorNavyDark = Color(0xFF0F172A)
+val ColorNavyCardBorder = Color(0xFF1E293B)
 
-// Màu nhấn phụ: xanh lá sẫm (Forest Green)
-val ColorForest = Color(0xFF2D6A4F)
-val ColorForestLight = Color(0xFF52B788)
+// Màu chữ / Ink
+val ColorInk = Color(0xFF0F172A)
+val ColorInkLight = Color(0xFF1E293B)
+val ColorInkLighter = Color(0xFF334155)
 
-// Màu kem nhạt (Form background bên phải)
-val ColorCream = Color(0xFFF5F0E8)
+// Điểm nhấn Chặng 1 & Tiến độ Neon
+val ColorGreenNeon = Color(0xFF10B981)
+val ColorSuccess = Color(0xFF16A34A)
+val ColorSuccessBg = Color(0xFFDCFCE7)
+val ColorSuccessText = Color(0xFF15803D)
 
-// Màu viền mỏng
-val ColorBorder = Color(0xFFE2DDD5)
+// Điểm nhấn Chặng 2 (Hổ phách / Cam)
+val ColorAmber = Color(0xFFF59E0B)
+val ColorAmberLight = Color(0xFFFEF3C7)
+val ColorAmberDark = Color(0xFFD97706)
+val ColorWarningBg = Color(0xFFFEF3C7)
+val ColorWarningText = Color(0xFFB45309)
 
-// Màu phụ bên trong giao diện tối (vùng left panel)
-val ColorInkLight = Color(0xFF252545)
-val ColorInkLighter = Color(0xFF2E2E50)
+// Điểm nhấn Chặng 3 (Khóa / Xám)
+val ColorLockedBg = Color(0xFFF1F5F9)
+val ColorLockedText = Color(0xFF64748B)
+val ColorLockedIcon = Color(0xFF94A3B8)
 
-// Màu chữ trên nền tối
+// Forest Green (tương thích component cũ)
+val ColorForest = Color(0xFF10B981)
+val ColorForestLight = Color(0xFF34D399)
+
+// Màu viền mỏng chuẩn Slate
+val ColorBorder = Color(0xFFE2E8F0)
+val ColorBorderLight = Color(0xFFF1F5F9)
+
+// Màu chữ trên nền tối (Hero card)
 val ColorTextOnDark = Color(0xFFFFFFFF)
-val ColorTextOnDarkSecondary = Color(0xFFB8B4C8)
+val ColorTextOnDarkSecondary = Color(0xFF94A3B8)
 
 // Màu chữ trên nền sáng
-val ColorTextOnLight = Color(0xFF1A1A2E)
-val ColorTextOnLightSecondary = Color(0xFF6B6880)
+val ColorTextOnLight = Color(0xFF0F172A)
+val ColorTextOnLightSecondary = Color(0xFF64748B)
 
-// Màu lỗi / Thành công
+// Primary Button
+val ColorPrimaryBlue = Color(0xFF2563EB)
+
+// Màu lỗi
 val ColorError = Color(0xFFDC2626)
-val ColorSuccess = Color(0xFF2D6A4F)

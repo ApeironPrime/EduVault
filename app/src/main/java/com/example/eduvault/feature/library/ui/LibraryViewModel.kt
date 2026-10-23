@@ -8,13 +8,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
+import java.io.File
 import javax.inject.Inject
 import com.example.eduvault.domain.repository.AuthRepository
 import com.example.eduvault.domain.repository.DocumentRepository
 import com.example.eduvault.domain.repository.CategoryRepository
 import com.example.eduvault.domain.repository.AiRepository
 import com.example.eduvault.domain.repository.NotificationRepository
+import com.example.eduvault.domain.repository.FlashcardRepository
 import com.example.eduvault.domain.model.NotificationType
 import com.example.eduvault.feature.library.ui.toLibraryDoc
 
@@ -26,13 +27,14 @@ class LibraryViewModel @Inject constructor(
     private val documentRepository: DocumentRepository,
     private val categoryRepository: CategoryRepository,
     private val aiRepository: AiRepository,
-    private val notificationRepository: NotificationRepository
+    private val notificationRepository: NotificationRepository,
+    private val flashcardRepository: FlashcardRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LibraryUiState())
     val uiState: StateFlow<LibraryUiState> = _uiState.asStateFlow()
 
-    private val _subjects = MutableStateFlow<List<String>>(listOf("Tất cả", "Kinh tế vi mô", "Marketing", "Thống kê", "Quản trị", "Kế toán", "Luật", "Lập trình"))
+    private val _subjects = MutableStateFlow<List<String>>(listOf("Tất cả", "Git", "Lập trình", "Kiểm thử", "Agile/Scrum", "DevOps", "Bảo mật"))
     val subjects: StateFlow<List<String>> = _subjects.asStateFlow()
 
     private val allDocsList = mutableListOf<LibraryDoc>()
@@ -84,16 +86,12 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Mở tài liệu mà không lập tức trừ credit (trừ credit chỉ diễn ra khi bấm nút Mở khóa).
-     */
+    /** Mở tài liệu đào tạo. Quyền truy cập được quyết định bởi trạng thái đăng nhập. */
     fun onOpenDocument(docId: String, onAllowed: () -> Unit, onBlocked: () -> Unit) {
         onAllowed()
     }
 
-    /**
-     * Thực hiện trừ credit thật từ Firestore và lưu document đã mua.
-     */
+    /** Legacy community-mode API, retained for backward compatibility. */
     fun unlockDocument(docId: String, onResult: (Result<com.example.eduvault.domain.model.User>) -> Unit) {
         viewModelScope.launch {
             authRepository.unlockDocument(docId).onSuccess { user ->
@@ -192,10 +190,10 @@ class LibraryViewModel @Inject constructor(
 
     private fun syncSavedStatusAndFilter() {
         val savedIds = _uiState.value.savedDocuments.toSet()
+        val isLoggedIn = _uiState.value.currentUserId.isNotEmpty()
         for (i in allDocsList.indices) {
             val doc = allDocsList[i]
-            val currentFirebaseUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
-            if (currentFirebaseUser != null) {
+            if (isLoggedIn) {
                 allDocsList[i] = doc.copy(isSaved = doc.id in savedIds)
             }
         }
@@ -221,12 +219,12 @@ class LibraryViewModel @Inject constructor(
                         doc.title.contains(subject, ignoreCase = true) ||
                         doc.courseCode.contains(subject, ignoreCase = true) ||
                         when (subject) {
-                            "Kinh tế vi mô", "Kinh tế học" -> doc.courseCode.contains("EC", ignoreCase = true)
-                            "Marketing" -> doc.courseCode.contains("MKT", ignoreCase = true)
-                            "Kế toán" -> doc.courseCode.contains("ACC", ignoreCase = true)
-                            "Thống kê" -> doc.courseCode.contains("STAT", ignoreCase = true)
-                            "Quản trị" -> doc.courseCode.contains("MGT", ignoreCase = true)
-                            "Luật", "Pháp luật" -> doc.courseCode.contains("LAW", ignoreCase = true)
+                            "Git" -> doc.courseCode.contains("GIT", ignoreCase = true)
+                            "Lập trình" -> listOf("JAVA", "KOTLIN", "DOTNET", "WEB", "MOBILE").any { doc.courseCode.contains(it, ignoreCase = true) }
+                            "Kiểm thử" -> listOf("TEST", "QA", "QC").any { doc.courseCode.contains(it, ignoreCase = true) }
+                            "Agile/Scrum" -> listOf("AGILE", "SCRUM").any { doc.courseCode.contains(it, ignoreCase = true) }
+                            "DevOps" -> listOf("DEVOPS", "CI/CD", "CLOUD").any { doc.courseCode.contains(it, ignoreCase = true) }
+                            "Bảo mật" -> listOf("SEC", "SECURITY").any { doc.courseCode.contains(it, ignoreCase = true) }
                             else -> false
                         }
 
@@ -254,16 +252,10 @@ class LibraryViewModel @Inject constructor(
             val summariesCount = allDocsList.count { it.type == LibraryDocType.SUMMARY }
 
             var flashcardCount = 0
-            val currentFirebaseUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
-            if (currentFirebaseUser != null) {
-                try {
-                    val fcSnapshot = com.google.firebase.firestore.FirebaseFirestore.getInstance()
-                        .collection("flashcards")
-                        .whereEqualTo("authorId", currentFirebaseUser.uid)
-                        .get().await()
-                    flashcardCount = fcSnapshot.size()
-                } catch (e: Exception) {
-                    android.util.Log.e("LibraryViewModel", "Error fetching flashcards count: ${e.localizedMessage}")
+            val currentUserId = _uiState.value.currentUserId
+            if (currentUserId.isNotEmpty()) {
+                flashcardRepository.getUserFlashcardCount(currentUserId).onSuccess { count ->
+                    flashcardCount = count
                 }
             }
 
@@ -314,16 +306,9 @@ class LibraryViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             try {
-                val firestore = com.google.firebase.firestore.FirebaseFirestore.getInstance()
-                val docRef = firestore.collection("documents").document(docId)
-
-                // 1. Kiểm tra Cache & Version trong Firestore
-                val snap = docRef.get().await()
-                if (snap.exists()) {
-                    val cachedSummary = snap.getString("aiSummary") ?: ""
-                    val cachedVersion = snap.getLong("aiSummaryVersion") ?: 0L
-                    if (cachedSummary.trim().isNotEmpty() && cachedVersion == 1L) {
-                        // Trả về trực tiếp từ cache Firestore
+                // 1. Kiểm tra Cache & Version trong DocumentRepository
+                documentRepository.getCachedSummary(docId).onSuccess { cachedSummary ->
+                    if (!cachedSummary.isNullOrBlank()) {
                         onResult(Result.success(cachedSummary))
                         return@launch
                     }
@@ -331,7 +316,7 @@ class LibraryViewModel @Inject constructor(
 
                 // 2. Gọi Gemini sinh tóm tắt mới nếu chưa có hoặc sai phiên bản
                 val contentToUse = if (content.trim().isNotEmpty()) content else {
-                    "Tài liệu môn học $docTitle ôn tập học thuật đại cương và chuyên ngành."
+                    "Tài liệu đào tạo $docTitle dành cho chương trình intern và fresher."
                 }
 
                 aiRepository.generateSummaryFromDocument(
@@ -353,15 +338,8 @@ class LibraryViewModel @Inject constructor(
                         }
                     }
 
-                    // 3. Ghi ngược lại Firestore cache kèm version = 1
-                    try {
-                        docRef.update(
-                            mapOf(
-                                "aiSummary" to generatedSummary,
-                                "aiSummaryVersion" to 1L
-                            )
-                        ).await()
-                    } catch (cacheErr: Exception) {
+                    // 3. Ghi ngược lại Firestore cache kèm version = 1 qua DocumentRepository
+                    documentRepository.saveCachedSummary(docId, generatedSummary).onFailure { cacheErr ->
                         android.util.Log.e("LibraryViewModel", "Không thể lưu cache AI summary: ${cacheErr.localizedMessage}")
                     }
                     onResult(Result.success(generatedSummary))
@@ -387,7 +365,7 @@ class LibraryViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val contentToUse = if (content.trim().isNotEmpty()) content else {
-                    "Tài liệu môn học $docTitle ôn tập học thuật đại cương và chuyên ngành."
+                    "Tài liệu đào tạo $docTitle dành cho chương trình intern và fresher."
                 }
                 aiRepository.askAiAboutDocument(
                     title = docTitle,
@@ -489,6 +467,13 @@ class LibraryViewModel @Inject constructor(
                 docContentError = null
             )
         }
+    }
+
+    /**
+     * Tải tệp tài liệu PDF thông qua DocumentRepository.
+     */
+    suspend fun downloadDocumentPdf(downloadUrl: String, destinationFile: File): Result<File> {
+        return documentRepository.downloadDocumentPdf(downloadUrl, destinationFile)
     }
 
     /**

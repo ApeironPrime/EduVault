@@ -45,6 +45,8 @@ class FlashcardViewModelTest {
         private val result: Result<List<FlashcardSet>>
     ) : FlashcardRepository {
         override suspend fun getFlashcardSets(): Result<List<FlashcardSet>> = result
+        override suspend fun getUserFlashcardCount(userId: String): Result<Int> =
+            Result.success(result.getOrNull()?.size ?: 0)
     }
 
     private companion object {

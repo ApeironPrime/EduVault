@@ -1,14 +1,20 @@
 package com.example.eduvault.data.repository
 
+import com.google.firebase.FirebaseNetworkException
+import com.example.eduvault.domain.model.Difficulty
+import com.example.eduvault.domain.model.QuizAnswer
+import com.example.eduvault.domain.model.QuizAttemptResult
+import com.example.eduvault.domain.model.QuizQuestion
+import com.example.eduvault.domain.model.QuizSet
 import com.example.eduvault.domain.model.User
+import com.example.eduvault.domain.model.trustedRoleFromClaims
 import com.example.eduvault.domain.repository.AuthRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
-import com.google.firebase.auth.FirebaseAuthUserCollisionException
-import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.google.firebase.auth.userProfileChangeRequest
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.functions.FirebaseFunctions
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -20,6 +26,7 @@ import javax.inject.Singleton
 class AuthRepositoryImpl @Inject constructor(
     private val firebaseAuth: FirebaseAuth,
     private val firestore: FirebaseFirestore,
+    private val functions: FirebaseFunctions,
 ) : AuthRepository {
 
     companion object {
@@ -46,7 +53,13 @@ class AuthRepositoryImpl @Inject constructor(
 
             Result.success(user)
         } catch (e: Exception) {
-            Result.failure(Exception(mapFirebaseError(e.message)))
+            val message = when (e) {
+                is FirebaseAuthInvalidUserException -> "Tài khoản không tồn tại hoặc đã bị vô hiệu hóa."
+                is FirebaseAuthInvalidCredentialsException -> "Email hoặc mật khẩu không đúng."
+                is FirebaseNetworkException -> "Lỗi kết nối mạng. Vui lòng kiểm tra kết nối internet."
+                else -> mapFirebaseError(e.message)
+            }
+            Result.failure(Exception(message, e))
         }
     }
 
@@ -136,121 +149,68 @@ class AuthRepositoryImpl @Inject constructor(
     override suspend fun addCredits(amount: Int): Result<User> {
         val firebaseUser = firebaseAuth.currentUser
             ?: return Result.failure(Exception("Người dùng chưa đăng nhập."))
-        return try {
-            val userRef = firestore.collection(USERS_COLLECTION).document(firebaseUser.uid)
-            val snapshot = userRef.get().await()
-            val currentCredits = snapshot.getLong("documentCredits")?.toInt() ?: 1
-            val newCredits = currentCredits + amount
-            
-            userRef.update("documentCredits", newCredits).await()
-            
-            val updatedUser = fetchUserFromFirestore(firebaseUser.uid)
-                ?: return Result.failure(Exception("Không thể cập nhật thông tin người dùng."))
-            
-            Result.success(updatedUser)
-        } catch (e: Exception) {
-            Result.failure(Exception(mapFirebaseError(e.message)))
-        }
+        val user = fetchUserFromFirestore(firebaseUser.uid)
+            ?: return Result.failure(Exception("Không thể lấy thông tin người dùng."))
+        return Result.success(user)
     }
 
     override suspend fun consumeCredit(): Result<User> {
         val firebaseUser = firebaseAuth.currentUser
             ?: return Result.failure(Exception("Người dùng chưa đăng nhập."))
-        return try {
-            val userRef = firestore.collection(USERS_COLLECTION).document(firebaseUser.uid)
-            val snapshot = userRef.get().await()
-            val currentCredits = snapshot.getLong("documentCredits")?.toInt() ?: 1
-            if (currentCredits <= 0) {
-                return Result.failure(Exception("Bạn đã hết lượt sử dụng tài liệu."))
-            }
-            val newCredits = currentCredits - 1
-            userRef.update("documentCredits", newCredits).await()
-            
-            val updatedUser = fetchUserFromFirestore(firebaseUser.uid)
-                ?: return Result.failure(Exception("Không thể cập nhật thông tin người dùng."))
-            
-            Result.success(updatedUser)
-        } catch (e: Exception) {
-            Result.failure(Exception(mapFirebaseError(e.message)))
-        }
+        val user = fetchUserFromFirestore(firebaseUser.uid)
+            ?: return Result.failure(Exception("Không thể lấy thông tin người dùng."))
+        return Result.success(user)
     }
 
     override suspend fun unlockDocument(docId: String): Result<User> {
         val firebaseUser = firebaseAuth.currentUser
             ?: return Result.failure(Exception("Người dùng chưa đăng nhập."))
         return try {
-            val userRef = firestore.collection(USERS_COLLECTION).document(firebaseUser.uid)
-            val docRef = firestore.collection("documents").document(docId)
-            
-            firestore.runTransaction { transaction ->
-                val userSnapshot = transaction.get(userRef)
-                val currentCredits = userSnapshot.getLong("documentCredits")?.toInt() ?: 1
-                val unlockedList = userSnapshot.get("unlockedDocuments") as? List<*>
-                val unlockedDocs = unlockedList?.mapNotNull { it?.toString() } ?: emptyList()
-                
-                if (unlockedDocs.contains(docId)) {
-                    return@runTransaction
-                }
-                
-                val docSnapshot = transaction.get(docRef)
-                if (!docSnapshot.exists()) {
-                    throw Exception("Tài liệu không tồn tại trên hệ thống.")
-                }
-                val fileSizeBytes = docSnapshot.getLong("fileSizeBytes") ?: 0L
-                val quantityLabel = docSnapshot.getString("quantityLabel") ?: ""
-                val cost = calculatePrice(fileSizeBytes, quantityLabel)
-                
-                if (currentCredits < cost) {
-                    throw Exception("Bạn cần $cost credit để mở khóa tài liệu này, nhưng hiện tại bạn chỉ có $currentCredits credit. Hãy chia sẻ 1 tài liệu học tập của mình để nhận thêm lượt!")
-                }
-                
-                val newCredits = currentCredits - cost
-                val newUnlockedDocs = unlockedDocs + docId
-                transaction.update(userRef, mapOf(
-                    "documentCredits" to newCredits,
-                    "unlockedDocuments" to newUnlockedDocs
-                ))
-            }.await()
-            
+            functions.availableCallable("unlockDocument")
+                .call(mapOf("documentId" to docId))
+                .await()
+
             val updatedUser = fetchUserFromFirestore(firebaseUser.uid)
-                ?: return Result.failure(Exception("Không thể cập nhật thông tin người dùng."))
-            
+                ?: return Result.failure(Exception("Không thể cập nhật thông tin người dùng sau khi mở khóa."))
+
             Result.success(updatedUser)
         } catch (e: Exception) {
             val rawMsg = e.message ?: ""
             val friendlyMsg = when {
-                rawMsg.contains("Bạn cần") || rawMsg.contains("Tài liệu không") -> rawMsg
-                e.cause?.message?.contains("Bạn cần") == true -> e.cause?.message ?: ""
-                e.cause?.message?.contains("Tài liệu không") == true -> e.cause?.message ?: ""
-                else -> mapFirebaseError(e.message)
+                rawMsg.contains("Insufficient credits", ignoreCase = true) || rawMsg.contains("Bạn cần", ignoreCase = true) ->
+                    "Bạn không đủ credit để mở khóa tài liệu này. Hãy chia sẻ tài liệu để nhận thêm lượt!"
+                rawMsg.contains("Approved document was not found", ignoreCase = true) || rawMsg.contains("Tài liệu không", ignoreCase = true) ->
+                    "Tài liệu chưa được phê duyệt hoặc không tồn tại trên hệ thống."
+                rawMsg.contains("Authentication is required", ignoreCase = true) ->
+                    "Vui lòng đăng nhập để mở khóa tài liệu."
+                else -> mapFirebaseError(rawMsg)
             }
-            Result.failure(Exception(friendlyMsg))
+            Result.failure(Exception(friendlyMsg, e))
         }
     }
 
-    override suspend fun getQuizSets(): Result<List<com.example.eduvault.feature.quiz.ui.QuizSet>> {
+    override suspend fun getQuizSets(): Result<List<QuizSet>> {
         return try {
             val snapshot = firestore.collection("quizzes").get().await()
             val list = snapshot.documents.mapNotNull { doc ->
                 val quizID = doc.getString("quizID") ?: doc.id
-                val authorId = doc.getString("authorId") ?: ""
-                val documentID = doc.getString("documentID") ?: ""
+                
                 val difficultyStr = doc.getString("difficulty") ?: "Medium"
                 val questionCount = doc.getLong("questionCount")?.toInt() ?: 10
                 
                 val difficulty = when (difficultyStr.lowercase()) {
-                    "easy", "dễ" -> com.example.eduvault.feature.quiz.ui.Difficulty.EASY
-                    "hard", "khó" -> com.example.eduvault.feature.quiz.ui.Difficulty.HARD
-                    else -> com.example.eduvault.feature.quiz.ui.Difficulty.MEDIUM
+                    "easy", "dễ" -> Difficulty.EASY
+                    "hard", "khó" -> Difficulty.HARD
+                    else -> Difficulty.MEDIUM
                 }
                 
                 val subject = doc.getString("subject")
                     ?: doc.getString("documentID")
-                    ?: (if (quizID.contains("Marketing", ignoreCase = true)) "MKT301 - Marketing" else "EC0201 - Kinh tế vi mô")
+                    ?: (if (quizID.contains("Git", ignoreCase = true)) "GIT101 - Git Workflow" else "AGL101 - Agile/Scrum")
                 val title = doc.getString("title")
                     ?: "Đề luyện tập: ${quizID}"
                 
-                com.example.eduvault.feature.quiz.ui.QuizSet(
+                QuizSet(
                     id = quizID,
                     subject = subject,
                     title = title,
@@ -258,7 +218,8 @@ class AuthRepositoryImpl @Inject constructor(
                     questionCount = questionCount,
                     playCount = "1",
                     isNew = true,
-                    bgIndex = Math.abs(quizID.hashCode() % 6)
+                    bgIndex = Math.abs(quizID.hashCode() % 6),
+                    trainingModuleId = doc.getString("trainingModuleId")
                 )
             }
             Result.success(list)
@@ -267,7 +228,7 @@ class AuthRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun getQuizQuestions(quizId: String): Result<List<com.example.eduvault.feature.quiz.ui.QuizQuestion>> {
+    override suspend fun getQuizQuestions(quizId: String): Result<List<QuizQuestion>> {
         return try {
             val doc = firestore.collection("quizzes").document(quizId).get().await()
             if (!doc.exists()) {
@@ -279,7 +240,7 @@ class AuthRepositoryImpl @Inject constructor(
         }
     }
 
-    private fun parseQuestionsFromDoc(doc: com.google.firebase.firestore.DocumentSnapshot): Result<List<com.example.eduvault.feature.quiz.ui.QuizQuestion>> {
+    private fun parseQuestionsFromDoc(doc: com.google.firebase.firestore.DocumentSnapshot): Result<List<QuizQuestion>> {
         return try {
             val rawQuestions = doc.get("questions") as? List<Map<String, Any>> ?: emptyList()
             val parsedList = rawQuestions.mapIndexed { idx, qMap ->
@@ -291,7 +252,7 @@ class AuthRepositoryImpl @Inject constructor(
                 val alphabet = listOf("A", "B", "C", "D")
                 val optionsList = rawOptions.mapIndexed { optIdx, optText ->
                     val optKey = alphabet.getOrNull(optIdx) ?: "A"
-                    com.example.eduvault.feature.quiz.ui.QuizAnswer(
+                    QuizAnswer(
                         key = optKey,
                         text = optText
                     )
@@ -299,7 +260,7 @@ class AuthRepositoryImpl @Inject constructor(
                 
                 val correctOption = alphabet.getOrNull(correctAnswerIndex) ?: "A"
                 
-                com.example.eduvault.feature.quiz.ui.QuizQuestion(
+                QuizQuestion(
                     id = "firestore_q_${idx}",
                     text = content,
                     hint = "",
@@ -310,7 +271,7 @@ class AuthRepositoryImpl @Inject constructor(
             }
             Result.success(parsedList)
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception("Phân tích câu hỏi thất bại: ${e.localizedMessage}"))
         }
     }
 
@@ -339,8 +300,9 @@ class AuthRepositoryImpl @Inject constructor(
                     isBlocked = doc.getBoolean("isBlocked") ?: false,
                     unlockedDocuments = (doc.get("unlockedDocuments") as? List<*>)?.mapNotNull { it?.toString() } ?: emptyList(),
                     quizCount = doc.getLong("quizCount")?.toInt() ?: 0,
-                    quizAverageScore = doc.getDouble("quizAverageScore")?.toFloat() ?: 0.0f,
+                    quizAverageScore = normalizeQuizAverage(doc.getDouble("quizAverageScore")),
                     totalXp = doc.getLong("totalXp")?.toInt() ?: 0,
+                    trainingProgressPercent = doc.getLong("trainingProgressPercent")?.toInt()?.coerceIn(0, 100) ?: 0,
                     savedDocuments = (doc.get("savedDocuments") as? List<*>)?.mapNotNull { it?.toString() } ?: emptyList()
                 )
             }
@@ -353,59 +315,54 @@ class AuthRepositoryImpl @Inject constructor(
     override suspend fun updateUserQuizStats(score: Float, xpEarned: Int): Result<User> {
         val firebaseUser = firebaseAuth.currentUser
             ?: return Result.failure(Exception("Người dùng chưa đăng nhập."))
+        val user = fetchUserFromFirestore(firebaseUser.uid)
+            ?: return Result.failure(Exception("Không tìm thấy thông tin người dùng."))
+        return Result.success(user)
+    }
+
+    override suspend fun recordQuizAttempt(
+        quizId: String,
+        attemptId: String,
+        answers: List<Int>
+    ): Result<QuizAttemptResult> {
+        val firebaseUser = firebaseAuth.currentUser
+            ?: return Result.failure(Exception("Người dùng chưa đăng nhập."))
         return try {
-            val userRef = firestore.collection(USERS_COLLECTION).document(firebaseUser.uid)
-            
-            val updatedUser = firestore.runTransaction { transaction ->
-                val snapshot = transaction.get(userRef)
-                
-                val currentQuizCount = snapshot.getLong("quizCount")?.toInt() ?: 0
-                val currentAvgScore = snapshot.getDouble("quizAverageScore")?.toFloat() ?: 0.0f
-                val currentTotalXp = snapshot.getLong("totalXp")?.toInt() ?: 0
-                
-                val newQuizCount = currentQuizCount + 1
-                val newAvgScore = (currentAvgScore * currentQuizCount + score) / newQuizCount
-                val newTotalXp = currentTotalXp + xpEarned
-                
-                transaction.update(
-                    userRef,
+            val result = functions.availableCallable("recordQuizAttempt")
+                .call(
                     mapOf(
-                        "quizCount" to newQuizCount,
-                        "quizAverageScore" to newAvgScore,
-                        "totalXp" to newTotalXp
+                        "quizId" to quizId,
+                        "attemptId" to attemptId,
+                        "answers" to answers
                     )
                 )
-                
-                val rawCreatedAt = snapshot.get("createdAt")
-                val milliseconds = when (rawCreatedAt) {
-                    is com.google.firebase.Timestamp -> rawCreatedAt.toDate().time
-                    is Long -> rawCreatedAt
-                    is Number -> rawCreatedAt.toLong()
-                    else -> System.currentTimeMillis()
-                }
-                
-                User(
-                    uid = firebaseUser.uid,
-                    fullName = snapshot.getString("name") ?: snapshot.getString("fullName") ?: "",
-                    email = snapshot.getString("email") ?: "",
-                    university = snapshot.getString("university") ?: "",
-                    avatarUrl = snapshot.getString("avatarUrl") ?: "",
-                    documentCredits = snapshot.getLong("documentCredits")?.toInt() ?: 1,
-                    uploadCount = snapshot.getLong("uploadCount")?.toInt() ?: 0,
-                    createdAt = milliseconds,
-                    role = snapshot.getString("role") ?: "user",
-                    isBlocked = snapshot.getBoolean("isBlocked") ?: false,
-                    unlockedDocuments = (snapshot.get("unlockedDocuments") as? List<*>)?.mapNotNull { it?.toString() } ?: emptyList(),
-                    quizCount = newQuizCount,
-                    quizAverageScore = newAvgScore,
-                    totalXp = newTotalXp,
-                    savedDocuments = (snapshot.get("savedDocuments") as? List<*>)?.mapNotNull { it?.toString() } ?: emptyList()
+                .await()
+
+            val data = result.data as? Map<*, *> ?: error("Dữ liệu phản hồi từ server không hợp lệ.")
+            val correctCount = (data["correctCount"] as? Number)?.toInt() ?: 0
+            val questionCount = (data["questionCount"] as? Number)?.toInt() ?: 0
+            val score = (data["score"] as? Number)?.toDouble() ?: 0.0
+            val xpEarned = (data["xpEarned"] as? Number)?.toInt() ?: 0
+
+            Result.success(
+                QuizAttemptResult(
+                    quizId = quizId,
+                    correctCount = correctCount,
+                    questionCount = questionCount,
+                    score = score,
+                    xpEarned = xpEarned
                 )
-            }.await()
-            
-            Result.success(updatedUser)
+            )
         } catch (e: Exception) {
-            Result.failure(Exception(mapFirebaseError(e.message)))
+            val rawMsg = e.message ?: ""
+            val friendlyMsg = when {
+                rawMsg.contains("Quiz or user profile was not found", ignoreCase = true) ->
+                    "Không tìm thấy bộ đề thi trên hệ thống."
+                rawMsg.contains("Answer count does not match", ignoreCase = true) ->
+                    "Số lượng câu trả lời không khớp với đề thi."
+                else -> mapFirebaseError(rawMsg)
+            }
+            Result.failure(Exception(friendlyMsg, e))
         }
     }
 
@@ -469,8 +426,9 @@ class AuthRepositoryImpl @Inject constructor(
                     isBlocked = snapshot.getBoolean("isBlocked") ?: false,
                     unlockedDocuments = (snapshot.get("unlockedDocuments") as? List<*>)?.mapNotNull { it?.toString() } ?: emptyList(),
                     quizCount = snapshot.getLong("quizCount")?.toInt() ?: 0,
-                    quizAverageScore = snapshot.getDouble("quizAverageScore")?.toFloat() ?: 0.0f,
+                    quizAverageScore = normalizeQuizAverage(snapshot.getDouble("quizAverageScore")),
                     totalXp = snapshot.getLong("totalXp")?.toInt() ?: 0,
+                    trainingProgressPercent = snapshot.getLong("trainingProgressPercent")?.toInt()?.coerceIn(0, 100) ?: 0,
                     savedDocuments = (snapshot.get("savedDocuments") as? List<*>)?.mapNotNull { it?.toString() } ?: emptyList()
                 )
             } else {
@@ -481,7 +439,7 @@ class AuthRepositoryImpl @Inject constructor(
                     email = firebaseUser.email ?: "",
                     university = "",
                     avatarUrl = firebaseUser.photoUrl?.toString() ?: "",
-                    documentCredits = 5, // Cấp 5 credits chào mừng cho tài khoản Google mới!
+                    documentCredits = 5, // Legacy community-mode field retained for data compatibility.
                     uploadCount = 0,
                     createdAt = System.currentTimeMillis(),
                     role = "user",
@@ -502,7 +460,7 @@ class AuthRepositoryImpl @Inject constructor(
                 return Result.failure(Exception("Tài khoản của bạn đã bị khóa bởi Admin."))
             }
 
-            Result.success(user)
+            Result.success(user.copy(role = trustedRoleFromClaims(firebaseUser.getIdToken(false).await().claims)))
         } catch (e: Exception) {
             Result.failure(Exception("Lỗi xác thực Google: ${e.localizedMessage}"))
         }
@@ -541,8 +499,8 @@ class AuthRepositoryImpl @Inject constructor(
     }
 
     override suspend fun saveQuizSet(
-        quizSet: com.example.eduvault.feature.quiz.ui.QuizSet,
-        questions: List<com.example.eduvault.feature.quiz.ui.QuizQuestion>
+        quizSet: QuizSet,
+        questions: List<QuizQuestion>
     ): Result<Unit> {
         val firebaseUser = firebaseAuth.currentUser
             ?: return Result.failure(Exception("Người dùng chưa đăng nhập."))
@@ -554,8 +512,8 @@ class AuthRepositoryImpl @Inject constructor(
                 "subject" to quizSet.subject,
                 "title" to quizSet.title,
                 "difficulty" to when (quizSet.difficulty) {
-                    com.example.eduvault.feature.quiz.ui.Difficulty.EASY -> "easy"
-                    com.example.eduvault.feature.quiz.ui.Difficulty.HARD -> "hard"
+                    Difficulty.EASY -> "easy"
+                    Difficulty.HARD -> "hard"
                     else -> "medium"
                 },
                 "questionCount" to quizSet.questionCount,
@@ -672,12 +630,13 @@ class AuthRepositoryImpl @Inject constructor(
             documentCredits = snapshot.getLong("documentCredits")?.toInt() ?: 1,
             uploadCount = snapshot.getLong("uploadCount")?.toInt() ?: 0,
             createdAt = milliseconds,
-            role = snapshot.getString("role") ?: "user",
+            role = trustedRoleFromClaims(firebaseAuth.currentUser?.getIdToken(false)?.await()?.claims.orEmpty()),
             isBlocked = snapshot.getBoolean("isBlocked") ?: false,
             unlockedDocuments = (snapshot.get("unlockedDocuments") as? List<*>)?.mapNotNull { it?.toString() } ?: emptyList(),
             quizCount = snapshot.getLong("quizCount")?.toInt() ?: 0,
-            quizAverageScore = snapshot.getDouble("quizAverageScore")?.toFloat() ?: 0.0f,
+            quizAverageScore = normalizeQuizAverage(snapshot.getDouble("quizAverageScore")),
             totalXp = snapshot.getLong("totalXp")?.toInt() ?: 0,
+            trainingProgressPercent = snapshot.getLong("trainingProgressPercent")?.toInt()?.coerceIn(0, 100) ?: 0,
             savedDocuments = (snapshot.get("savedDocuments") as? List<*>)?.mapNotNull { it?.toString() } ?: emptyList()
         )
     }
@@ -696,8 +655,17 @@ class AuthRepositoryImpl @Inject constructor(
                 "Quá nhiều lần thử. Vui lòng đợi vài phút rồi thử lại."
             message.contains("INVALID_LOGIN_CREDENTIALS", ignoreCase = true) ->
                 "Email hoặc mật khẩu không đúng."
+            message.contains("permission-denied", ignoreCase = true) ||
+                    message.contains("insufficient permissions", ignoreCase = true) ->
+                    "Tài khoản chưa có quyền truy cập dữ liệu. Vui lòng liên hệ người phụ trách đào tạo."
             else -> "Đã xảy ra lỗi. Vui lòng thử lại."
         }
+    }
+
+    /** Keeps legacy 0-100 records compatible with the current 0-10 score scale. */
+    private fun normalizeQuizAverage(rawScore: Double?): Float {
+        val score = rawScore ?: return 0.0f
+        return (if (score > 10.0) score / 10.0 else score).toFloat().coerceIn(0.0f, 10.0f)
     }
 
     private fun calculatePrice(fileSizeBytes: Long, quantityLabel: String): Int {

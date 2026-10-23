@@ -634,7 +634,7 @@ private fun ResetPasswordFormPanel(
                     .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
                 Text(
-                    text = "⚡ Chế độ Demo (Offline)",
+                    text = "Liên kết khôi phục chưa hợp lệ",
                     fontFamily = DmSansFamily,
                     fontSize = 10.sp,
                     color = ColorAmberDark,
@@ -650,7 +650,7 @@ private fun ResetPasswordFormPanel(
                     .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
                 Text(
-                    text = "🔒 Khôi phục mật khẩu thật (Firebase Auth)",
+                    text = "Liên kết khôi phục hợp lệ",
                     fontFamily = DmSansFamily,
                     fontSize = 10.sp,
                     color = ColorForest,

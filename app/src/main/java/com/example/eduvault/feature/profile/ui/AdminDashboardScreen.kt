@@ -20,6 +20,7 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -36,6 +37,7 @@ import com.example.eduvault.core.theme.*
 import com.example.eduvault.domain.model.DocumentCategory
 import com.example.eduvault.domain.model.User
 import com.example.eduvault.feature.library.ui.LibraryDoc
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,8 +61,8 @@ fun AdminDashboardScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "Bảng quản trị Admin 🛠️",
-                        fontFamily = PlayfairDisplayFamily,
+                        text = "Quản trị hệ thống",
+                        fontFamily = DmSansFamily,
                         fontWeight = FontWeight.Bold,
                         fontSize = 20.sp,
                         color = ColorInk
@@ -80,12 +82,27 @@ fun AdminDashboardScreen(
         },
         containerColor = ColorCream
     ) { paddingValues ->
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp)
+                .padding(horizontal = 16.dp).testTag("admin_content"),
+            contentPadding = PaddingValues(vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            if (uiState.accessDenied) {
+                item {
+                    Card(colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("Cần quyền quản trị", fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold)
+                            Text("Tài khoản chưa được cấp quyền quản trị. Vui lòng liên hệ người quản lý chương trình.", fontFamily = DmSansFamily)
+                            OutlinedButton(onClick = onNavigateBack) { Text("Quay lại hồ sơ") }
+                        }
+                    }
+                }
+                return@LazyColumn
+            }
+            item {
             // Success & Error Messages Alerts
             if (uiState.successMessage != null || uiState.errorMessage != null) {
                 Box(modifier = Modifier.padding(bottom = 12.dp)) {
@@ -165,6 +182,12 @@ fun AdminDashboardScreen(
                 }
             }
 
+            TrainingMetricsPanel(
+                users = uiState.users,
+                pendingDocumentCount = uiState.pendingDocs.size,
+                modifier = Modifier.padding(bottom = 14.dp)
+            )
+
             // Scrollable Tab Row for 4 Tabs
             Row(
                 modifier = Modifier
@@ -225,131 +248,41 @@ fun AdminDashboardScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Tab Contents
+            } // Scrollable overview and filters
             when (selectedTab) {
-                0 -> {
-                    // Pending Approvals Tab
-                    if (uiState.isLoadingPending && uiState.pendingDocs.isEmpty()) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = ColorAmber)
-                        }
-                    } else if (uiState.pendingDocs.isEmpty()) {
-                        EmptyStateView(
-                            emoji = "🌿",
-                            message = "Hàng đợi kiểm duyệt trống sạch!\nTất cả tài liệu hiện đều an toàn và đã công bố."
-                        )
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            items(uiState.pendingDocs) { doc ->
-                                PendingDocCard(
-                                    doc = doc,
-                                    onApproveClick = { docToApprove = doc },
-                                    onRejectClick = { docToDelete = doc }
-                                )
-                            }
-                        }
+                0 -> when {
+                    uiState.isLoadingPending && uiState.pendingDocs.isEmpty() -> item { AdminLoading() }
+                    uiState.pendingDocs.isEmpty() -> item { AdminEmpty("Không có học liệu chờ duyệt.") }
+                    else -> items(uiState.pendingDocs, key = { it.id }) { doc ->
+                        PendingDocCard(doc, { docToApprove = doc }, { docToDelete = doc })
                     }
                 }
-                1 -> {
-                    // Reported Documents Tab
-                    if (uiState.isLoadingReported && uiState.reportedDocs.isEmpty()) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = ColorAmber)
-                        }
-                    } else if (uiState.reportedDocs.isEmpty()) {
-                        EmptyStateView(
-                            emoji = "🛡️",
-                            message = "Không có tài liệu nào bị tố cáo!\nMôi trường học tập đang rất trong sạch."
-                        )
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            items(uiState.reportedDocs) { doc ->
-                                ReportedDocCard(
-                                    doc = doc,
-                                    onDismissClick = { docToDismissReport = doc },
-                                    onDeleteClick = { docReportToDelete = doc }
-                                )
-                            }
-                        }
+                1 -> when {
+                    uiState.isLoadingReported && uiState.reportedDocs.isEmpty() -> item { AdminLoading() }
+                    uiState.reportedDocs.isEmpty() -> item { AdminEmpty("Không có học liệu bị báo cáo.") }
+                    else -> items(uiState.reportedDocs, key = { it.id }) { doc ->
+                        ReportedDocCard(doc, { docToDismissReport = doc }, { docReportToDelete = doc })
                     }
                 }
-                2 -> {
-                    // Users Management Tab
-                    if (uiState.isLoadingUsers && uiState.users.isEmpty()) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = ColorAmber)
-                        }
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            items(uiState.users) { user ->
-                                UserAdminCard(
-                                    user = user,
-                                    onToggleBlockClick = { userToToggleBlock = user }
-                                )
-                            }
-                        }
+                2 -> when {
+                    uiState.isLoadingUsers && uiState.users.isEmpty() -> item { AdminLoading() }
+                    uiState.users.isEmpty() -> item { AdminEmpty("Chưa có học viên trong danh sách.") }
+                    else -> items(uiState.users, key = { it.uid }) { user ->
+                        UserAdminCard(user, { userToToggleBlock = user })
                     }
                 }
                 3 -> {
-                    // Categories Management Tab
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Danh sách danh mục động",
-                                fontFamily = DmSansFamily,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = ColorInk
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(ColorAmber)
-                                    .clickable { showAddCategoryDialog = true }
-                                    .padding(horizontal = 12.dp, vertical = 7.dp)
-                            ) {
-                                Text(
-                                    text = "+ Thêm danh mục",
-                                    fontFamily = DmSansFamily,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.5.sp,
-                                    color = ColorInk
-                                )
-                            }
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Danh mục học liệu", fontFamily = DmSansFamily, fontWeight = FontWeight.SemiBold)
+                            Button(onClick = { showAddCategoryDialog = true }) { Text("Thêm danh mục") }
                         }
-
-                        if (uiState.isLoadingCats && uiState.categories.isEmpty()) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator(color = ColorAmber)
-                            }
-                        } else {
-                            LazyColumn(
-                                modifier = Modifier.fillMaxSize(),
-                                verticalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                items(uiState.categories) { cat ->
-                                    CategoryAdminCard(
-                                        cat = cat,
-                                        onEditClick = { categoryToEdit = cat },
-                                        onDeleteClick = { viewModel.deleteCategory(cat.id) }
-                                    )
-                                }
-                            }
+                    }
+                    when {
+                        uiState.isLoadingCats && uiState.categories.isEmpty() -> item { AdminLoading() }
+                        uiState.categories.isEmpty() -> item { AdminEmpty("Chưa có danh mục học liệu.") }
+                        else -> items(uiState.categories, key = { it.id }) { cat ->
+                            CategoryAdminCard(cat, { categoryToEdit = cat }, { viewModel.deleteCategory(cat.id) })
                         }
                     }
                 }
@@ -401,7 +334,7 @@ fun AdminDashboardScreen(
                     Text("Hủy", fontFamily = DmSansFamily, color = ColorTextOnLightSecondary)
                 }
             },
-            title = { Text("Phê duyệt xuất bản?", fontFamily = PlayfairDisplayFamily, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+            title = { Text("Phê duyệt xuất bản?", fontFamily = DmSansFamily, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
             text = { Text("Tài liệu \"${doc.title}\" sẽ được xuất bản công khai cho tất cả người dùng trong hệ thống.", fontFamily = DmSansFamily, fontSize = 14.sp, color = ColorTextOnLightSecondary) },
             shape = RoundedCornerShape(18.dp),
             containerColor = Color.White
@@ -427,7 +360,7 @@ fun AdminDashboardScreen(
                     Text("Hủy", fontFamily = DmSansFamily, color = ColorTextOnLightSecondary)
                 }
             },
-            title = { Text("Từ chối phê duyệt?", fontFamily = PlayfairDisplayFamily, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+            title = { Text("Từ chối phê duyệt?", fontFamily = DmSansFamily, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
             text = { Text("Từ chối và xóa bỏ vĩnh viễn tài liệu vi phạm \"${doc.title}\" khỏi hệ thống database Firestore.", fontFamily = DmSansFamily, fontSize = 14.sp, color = ColorTextOnLightSecondary) },
             shape = RoundedCornerShape(18.dp),
             containerColor = Color.White
@@ -453,7 +386,7 @@ fun AdminDashboardScreen(
                     Text("Hủy", fontFamily = DmSansFamily, color = ColorTextOnLightSecondary)
                 }
             },
-            title = { Text("Bác bỏ tố cáo?", fontFamily = PlayfairDisplayFamily, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+            title = { Text("Bác bỏ tố cáo?", fontFamily = DmSansFamily, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
             text = { Text("Bác bỏ toàn bộ báo cáo vi phạm, giữ lại tài liệu \"${doc.title}\" hiển thị an toàn bình thường trên Thư viện.", fontFamily = DmSansFamily, fontSize = 14.sp, color = ColorTextOnLightSecondary) },
             shape = RoundedCornerShape(18.dp),
             containerColor = Color.White
@@ -479,7 +412,7 @@ fun AdminDashboardScreen(
                     Text("Hủy", fontFamily = DmSansFamily, color = ColorTextOnLightSecondary)
                 }
             },
-            title = { Text("Xóa tài liệu bị tố cáo?", fontFamily = PlayfairDisplayFamily, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+            title = { Text("Xóa tài liệu bị tố cáo?", fontFamily = DmSansFamily, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
             text = { Text("Xác nhận tài liệu \"${doc.title}\" thực sự vi phạm và xóa vĩnh viễn khỏi hệ thống database.", fontFamily = DmSansFamily, fontSize = 14.sp, color = ColorTextOnLightSecondary) },
             shape = RoundedCornerShape(18.dp),
             containerColor = Color.White
@@ -506,17 +439,143 @@ fun AdminDashboardScreen(
                     Text("Hủy", fontFamily = DmSansFamily, color = ColorTextOnLightSecondary)
                 }
             },
-            title = { Text("$verb tài khoản thành viên?", fontFamily = PlayfairDisplayFamily, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+            title = { Text("$verb tài khoản thành viên?", fontFamily = DmSansFamily, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
             text = {
                 val blockDesc = if (user.isBlocked) {
                     "Sau khi mở khóa, người dùng \"${user.fullName}\" có thể đăng nhập và truy cập tất cả tài nguyên bình thường."
                 } else {
-                    "Sau khi bị khóa, tài khoản của \"${user.fullName}\" sẽ bị đá phiên làm việc hiện tại tức thời và không thể đăng nhập lại."
+                    "Tài khoản \"${user.fullName}\" sẽ bị vô hiệu hóa trong Firebase Authentication và không thể đăng nhập hoặc làm mới phiên truy cập."
                 }
                 Text(blockDesc, fontFamily = DmSansFamily, fontSize = 14.sp, color = ColorTextOnLightSecondary)
             },
             shape = RoundedCornerShape(18.dp),
             containerColor = Color.White
+        )
+    }
+}
+
+// ─── Enterprise training overview ────────────────────────────────────────────
+@Composable
+private fun TrainingMetricsPanel(
+    users: List<User>,
+    pendingDocumentCount: Int,
+    modifier: Modifier = Modifier
+) {
+    val learners = users.filterNot { it.role == "admin" }
+    val activeLearners = learners.count { !it.isBlocked }
+    val totalQuizAttempts = learners.sumOf { it.quizCount }
+    val contributionCount = learners.sumOf { it.uploadCount }
+    val averageTrainingProgress = if (learners.isNotEmpty()) {
+        learners.sumOf { it.trainingProgressPercent } / learners.size
+    } else 0
+    val weightedAverage = if (totalQuizAttempts > 0) {
+        learners.sumOf { it.quizAverageScore.toDouble() * it.quizCount } / totalQuizAttempts
+    } else {
+        0.0
+    }
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = ColorInk),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f).padding(end = 8.dp)) {
+                    Text(
+                        text = "Tổng quan đào tạo",
+                        fontFamily = DmSansFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "Số liệu tổng hợp từ hồ sơ học viên",
+                        fontFamily = DmSansFamily,
+                        fontSize = 10.sp,
+                        color = ColorTextOnDarkSecondary
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(100.dp))
+                        .background(ColorAmber.copy(alpha = 0.18f))
+                        .padding(horizontal = 9.dp, vertical = 5.dp)
+                ) {
+                    Text(
+                        text = "$pendingDocumentCount chờ duyệt",
+                        fontFamily = JetBrainsMonoFamily,
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ColorAmber
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AdminMetricCard(
+                    value = "$activeLearners/${learners.size}",
+                    label = "Học viên hoạt động",
+                    modifier = Modifier.weight(1f)
+                )
+                AdminMetricCard(
+                    value = "$totalQuizAttempts",
+                    label = "Lượt đánh giá",
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AdminMetricCard(
+                    value = if (totalQuizAttempts > 0) String.format(Locale.ROOT, "%.1f/10", weightedAverage) else "Chưa có",
+                    label = "Điểm trung bình",
+                    modifier = Modifier.weight(1f)
+                )
+                AdminMetricCard(
+                    value = "$averageTrainingProgress%",
+                    label = "Tiến độ trung bình",
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Text(
+                text = "$contributionCount học liệu đã được học viên đóng góp và duyệt",
+                fontFamily = DmSansFamily,
+                fontSize = 9.5.sp,
+                color = ColorTextOnDarkSecondary,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun AdminMetricCard(value: String, label: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color.White.copy(alpha = 0.07f))
+            .padding(horizontal = 10.dp, vertical = 9.dp)
+    ) {
+        Text(
+            text = value,
+            fontFamily = JetBrainsMonoFamily,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
+            maxLines = 1
+        )
+        Text(
+            text = label,
+            fontFamily = DmSansFamily,
+            fontSize = 9.5.sp,
+            color = ColorTextOnDarkSecondary,
         )
     }
 }
@@ -586,7 +645,7 @@ private fun PendingDocCard(
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = doc.title,
-                fontFamily = PlayfairDisplayFamily,
+                fontFamily = DmSansFamily,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.5.sp,
                 color = ColorInk,
@@ -730,7 +789,7 @@ private fun ReportedDocCard(
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = doc.title,
-                fontFamily = PlayfairDisplayFamily,
+                fontFamily = DmSansFamily,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.5.sp,
                 color = ColorInk,
@@ -1046,7 +1105,7 @@ private fun CategoryCrudDialog(
                     ) {
                         Text(
                             text = title,
-                            fontFamily = PlayfairDisplayFamily,
+                            fontFamily = DmSansFamily,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp,
                             color = ColorInk
@@ -1090,8 +1149,8 @@ private fun CategoryCrudDialog(
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it },
-                        label = { Text("Tên danh mục học tập mới", fontFamily = DmSansFamily) },
-                        placeholder = { Text("Ví dụ: Kinh tế lượng", fontSize = 12.sp) },
+                        label = { Text("Tên nhóm kỹ năng mới", fontFamily = DmSansFamily) },
+                        placeholder = { Text("Ví dụ: DevOps cơ bản", fontSize = 12.sp) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = 20.dp),
@@ -1152,4 +1211,17 @@ private fun CategoryCrudDialog(
             }
         }
     }
+}
+
+@Composable
+private fun AdminLoading() {
+    Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator()
+    }
+}
+
+@Composable
+private fun AdminEmpty(message: String) {
+    Text(message, Modifier.fillMaxWidth().padding(vertical = 24.dp), fontFamily = DmSansFamily,
+        color = ColorTextOnLightSecondary)
 }

@@ -57,36 +57,14 @@ class NotificationRepositoryImpl @Inject constructor(
                 .await()
             
             if (snapshot.isEmpty) {
-                // Tự động chèn 4 thông báo mẫu của EduVault lùi timestamp thực tế
-                val currentTime = System.currentTimeMillis()
+                // A real welcome notice, without invented achievements or AI activity.
                 val defaultNotifications = listOf(
                     EduNotification(
-                        title = "🎁 Chào mừng đến với EduVault!",
-                        content = "Tài khoản của bạn đã được tạo thành công. Khám phá kho tài liệu học tập và bắt đầu chia sẻ ngay hôm nay.",
-                        timestamp = currentTime - 5 * 60_000,
+                        title = "Bắt đầu chương trình Onboarding",
+                        content = "Bắt đầu với quy chuẩn và bảo mật, tiếp tục setup môi trường & Git, rồi thực hành mock project. Nộp link bằng chứng để mentor kiểm tra.",
+                        timestamp = System.currentTimeMillis(),
                         userId = userId,
                         type = NotificationType.SYSTEM
-                    ),
-                    EduNotification(
-                        title = "📚 Hướng dẫn sử dụng",
-                        content = "Upload tài liệu lên EduVault để nhận credit và chia sẻ kiến thức với cộng đồng sinh viên. Mỗi lượt tải thành công bạn sẽ nhận thêm điểm XP.",
-                        timestamp = currentTime - 60 * 60_000,
-                        userId = userId,
-                        type = NotificationType.AI
-                    ),
-                    EduNotification(
-                        title = "🧩 Tính năng Quiz AI",
-                        content = "Thử tạo bộ câu hỏi trắc nghiệm tự động từ tài liệu của bạn bằng tính năng Quiz AI. Học hiệu quả hơn và luyện thi thông minh hơn.",
-                        timestamp = currentTime - 3 * 3600_000,
-                        userId = userId,
-                        type = NotificationType.COMMUNITY
-                    ),
-                    EduNotification(
-                        title = "💡 Mẹo sử dụng",
-                        content = "Dùng tính năng Smart Summary để tóm tắt tài liệu PDF bằng AI chỉ trong vài giây. Tiết kiệm thời gian ôn tập hiệu quả.",
-                        timestamp = currentTime - 24 * 3600_000,
-                        userId = userId,
-                        type = NotificationType.ACHIEVEMENT
                     )
                 )
 

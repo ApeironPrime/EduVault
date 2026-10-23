@@ -5,7 +5,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.example.eduvault.core.navigation.AppNavGraph
-import com.example.eduvault.core.navigation.AppRoutes
 import com.example.eduvault.core.theme.EduVaultTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -18,8 +17,8 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             EduVaultTheme {
-                // Luôn bắt đầu tại HOME — Guest Mode được xử lý trong ViewModel
-                AppNavGraph(startDestination = AppRoutes.HOME)
+                // Enterprise training content requires an authenticated account.
+                AppNavGraph()
             }
         }
     }

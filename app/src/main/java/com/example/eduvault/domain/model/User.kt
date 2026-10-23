@@ -19,5 +19,6 @@ data class User(
     val quizCount: Int = 0,
     val quizAverageScore: Float = 0.0f,
     val totalXp: Int = 0,
+    val trainingProgressPercent: Int = 0,
     val savedDocuments: List<String> = emptyList(),
 )

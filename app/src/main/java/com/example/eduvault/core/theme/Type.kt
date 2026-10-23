@@ -11,12 +11,25 @@ import com.example.eduvault.R
 
 // ─── Font Families ────────────────────────────────────────────────────────────
 
-val PlayfairDisplayFamily = FontFamily(
-    Font(R.font.playfair_display_regular, FontWeight.Normal),
-    Font(R.font.playfair_display_bold, FontWeight.Bold),
-    Font(R.font.playfair_display_italic, FontWeight.Normal, FontStyle.Italic),
-    Font(R.font.playfair_display_bold_italic, FontWeight.Bold, FontStyle.Italic),
+// Plus Jakarta Sans — Font Sans-Serif chuẩn cho app hiện đại
+val PlusJakartaSansFamily = FontFamily(
+    Font(R.font.plus_jakarta_sans, FontWeight.Normal),
+    Font(R.font.plus_jakarta_sans, FontWeight.Medium),
+    Font(R.font.plus_jakarta_sans, FontWeight.SemiBold),
+    Font(R.font.plus_jakarta_sans, FontWeight.Bold),
 )
+
+// Inter — Font Sans-Serif hiện đại
+val InterFamily = FontFamily(
+    Font(R.font.inter_variable, FontWeight.Normal),
+    Font(R.font.inter_variable, FontWeight.Medium),
+    Font(R.font.inter_variable, FontWeight.SemiBold),
+    Font(R.font.inter_variable, FontWeight.Bold),
+)
+
+// Triệt để loại bỏ font có chân Serif ở tất cả tiêu đề
+// Map PlayfairDisplayFamily sang PlusJakartaSansFamily để toàn bộ UI dùng Sans-serif hiện đại
+val PlayfairDisplayFamily = PlusJakartaSansFamily
 
 val DmSansFamily = FontFamily(
     Font(R.font.dm_sans_regular, FontWeight.Normal),
@@ -33,30 +46,29 @@ val JetBrainsMonoFamily = FontFamily(
 // ─── Typography Scale ─────────────────────────────────────────────────────────
 
 val Typography = Typography(
-    // Playfair Display — Tiêu đề lớn
+    // Plus Jakarta Sans — Tiêu đề lớn hiện đại (KHÔNG Serif)
     displayLarge = TextStyle(
-        fontFamily = PlayfairDisplayFamily,
+        fontFamily = PlusJakartaSansFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 40.sp,
-        lineHeight = 48.sp,
+        fontSize = 36.sp,
+        lineHeight = 44.sp,
         letterSpacing = (-0.5).sp
     ),
     displayMedium = TextStyle(
-        fontFamily = PlayfairDisplayFamily,
+        fontFamily = PlusJakartaSansFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 32.sp,
-        lineHeight = 40.sp,
+        fontSize = 28.sp,
+        lineHeight = 36.sp,
         letterSpacing = (-0.3).sp
     ),
     displaySmall = TextStyle(
-        fontFamily = PlayfairDisplayFamily,
-        fontWeight = FontWeight.Normal,
-        fontStyle = FontStyle.Italic,
-        fontSize = 26.sp,
-        lineHeight = 34.sp,
+        fontFamily = PlusJakartaSansFamily,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 22.sp,
+        lineHeight = 30.sp,
     ),
 
-    // DM Sans — Heading UI
+    // Heading UI
     headlineLarge = TextStyle(
         fontFamily = DmSansFamily,
         fontWeight = FontWeight.Bold,

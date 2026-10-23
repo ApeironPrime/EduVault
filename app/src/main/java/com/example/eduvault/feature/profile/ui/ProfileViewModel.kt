@@ -13,7 +13,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.io.File
-import java.io.FileOutputStream
+import java.io.IOException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 
 @HiltViewModel
@@ -96,29 +99,28 @@ class ProfileViewModel @Inject constructor(
         _uiState.update { it.copy(editUniversity = uni) }
     }
 
-    fun onAvatarSelected(avatarUrl: String) {
-        _uiState.update { it.copy(editAvatarUrl = avatarUrl) }
-    }
-
     /**
      * Xử lý sao chép ảnh được chọn từ thiết bị của người dùng vào bộ nhớ trong cục bộ
      */
     fun handleCustomAvatarPicked(context: Context, uri: Uri) {
         viewModelScope.launch {
+            var draft: File? = null
             try {
-                val inputStream = context.contentResolver.openInputStream(uri)
-                val file = File(context.filesDir, "custom_avatar.jpg")
-                val outputStream = FileOutputStream(file)
-                
-                inputStream?.use { input ->
-                    outputStream.use { output ->
-                        input.copyTo(output)
-                    }
+                val file = withContext(Dispatchers.IO) {
+                    val target = File.createTempFile("profile_avatar_", ".jpg", context.filesDir)
+                    draft = target
+                    val input = context.contentResolver.openInputStream(uri) ?: throw IOException("Không đọc được ảnh")
+                    input.use { source -> target.outputStream().use { output -> source.copyTo(output) } }
+                    target
                 }
-                
-                _uiState.update { it.copy(editAvatarUrl = file.absolutePath) }
-            } catch (e: Exception) {
-                _uiState.update { it.copy(errorMessage = "Không thể tải ảnh đại diện: ${e.localizedMessage}") }
+                if (_uiState.value.isEditing) _uiState.update { it.copy(editAvatarUrl = file.absolutePath) }
+                else file.delete()
+            } catch (cancelled: CancellationException) {
+                draft?.delete()
+                throw cancelled
+            } catch (_: Exception) {
+                draft?.delete()
+                _uiState.update { it.copy(errorMessage = "Không đọc được ảnh đại diện. Vui lòng chọn ảnh khác.") }
             }
         }
     }
@@ -168,7 +170,7 @@ class ProfileViewModel @Inject constructor(
         }
         viewModelScope.launch {
             _uiState.update { it.copy(isChangingPassword = true, changePasswordError = null, changePasswordSuccess = null) }
-            authRepository.changePassword(current.trim(), new.trim())
+            authRepository.changePassword(current, new)
                 .onSuccess {
                     _uiState.update {
                         it.copy(

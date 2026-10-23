@@ -1,9 +1,9 @@
 package com.example.eduvault.data.repository
 
+import com.example.eduvault.domain.model.LibraryDocument
+import com.example.eduvault.domain.model.LibraryDocumentType
 import com.example.eduvault.domain.repository.AdminRepository
-import com.example.eduvault.feature.library.ui.LibraryDoc
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.functions.FirebaseFunctions
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
@@ -12,33 +12,19 @@ import javax.inject.Singleton
 @Singleton
 class AdminRepositoryImpl @Inject constructor(
     private val firestore: FirebaseFirestore,
-    private val storage: FirebaseStorage,
     private val functions: FirebaseFunctions
 ) : AdminRepository {
 
     override suspend fun deleteDocument(docId: String): Result<Unit> {
         return try {
-            val docSnap = firestore.collection("documents").document(docId).get().await()
-            if (docSnap.exists()) {
-                val downloadUrl = docSnap.getString("downloadUrl") ?: docSnap.getString("fileUri") ?: ""
-                if (downloadUrl.isNotEmpty() && downloadUrl.contains("firebasestorage.googleapis.com")) {
-                    try {
-                        val storageRef = storage.getReferenceFromUrl(downloadUrl)
-                        storageRef.delete().await()
-                    } catch (e: Exception) {
-                        // Fail-safe cho UX: ghi nhận log lỗi nhưng vẫn tiếp tục xóa document Firestore để tránh rò rỉ đồng bộ
-                        android.util.Log.e("AdminRepository", "Failed to delete storage file: ${e.localizedMessage}")
-                    }
-                }
-            }
-            functions.getHttpsCallable("deleteDocument").call(mapOf("documentId" to docId)).await()
+            functions.availableCallable("deleteDocument").call(mapOf("documentId" to docId)).await()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(Exception("Xóa tài liệu thất bại: ${e.localizedMessage}"))
         }
     }
 
-    override suspend fun getPendingDocuments(): Result<List<LibraryDoc>> {
+    override suspend fun getPendingDocuments(): Result<List<LibraryDocument>> {
         return try {
             val snapshot = firestore.collection("documents")
                 .whereEqualTo("status", "PENDING")
@@ -50,10 +36,10 @@ class AdminRepositoryImpl @Inject constructor(
                 val courseCode = doc.getString("courseCode") ?: ""
                 val typeStr = doc.getString("type") ?: "Ghi chú"
                 val type = when (typeStr.lowercase()) {
-                    "quiz", "bộ đề", "trắc nghiệm" -> com.example.eduvault.feature.library.ui.LibraryDocType.QUIZ
-                    "slide", "bài giảng" -> com.example.eduvault.feature.library.ui.LibraryDocType.SLIDE
-                    "tóm tắt", "summary" -> com.example.eduvault.feature.library.ui.LibraryDocType.SUMMARY
-                    else -> com.example.eduvault.feature.library.ui.LibraryDocType.NOTE
+                    "quiz", "bộ đề", "trắc nghiệm" -> LibraryDocumentType.QUIZ
+                    "slide", "bài giảng" -> LibraryDocumentType.SLIDE
+                    "tóm tắt", "summary" -> LibraryDocumentType.SUMMARY
+                    else -> LibraryDocumentType.NOTE
                 }
                 val quantityLabel = doc.getString("quantityLabel") ?: "Tài liệu tự đăng"
                 val rating = doc.getDouble("rating")?.toFloat() ?: 0.0f
@@ -68,7 +54,7 @@ class AdminRepositoryImpl @Inject constructor(
                 val reportCount = doc.getLong("reportCount")?.toInt() ?: 0
                 val authorId = doc.getString("authorId") ?: ""
                 val fileSizeBytes = doc.getLong("fileSizeBytes") ?: 0L
-                LibraryDoc(
+                LibraryDocument(
                     id = id,
                     courseCode = courseCode,
                     title = title,
@@ -93,14 +79,14 @@ class AdminRepositoryImpl @Inject constructor(
 
     override suspend fun approveDocument(docId: String): Result<Unit> {
         return try {
-            functions.getHttpsCallable("approveDocument").call(mapOf("documentId" to docId)).await()
+            functions.availableCallable("approveDocument").call(mapOf("documentId" to docId)).await()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(Exception("Phê duyệt tài liệu thất bại: ${e.localizedMessage}"))
         }
     }
 
-    override suspend fun getReportedDocuments(): Result<List<LibraryDoc>> {
+    override suspend fun getReportedDocuments(): Result<List<LibraryDocument>> {
         return try {
             val snapshot = firestore.collection("documents")
                 .whereGreaterThan("reportCount", 0L)
@@ -112,10 +98,10 @@ class AdminRepositoryImpl @Inject constructor(
                 val courseCode = doc.getString("courseCode") ?: ""
                 val typeStr = doc.getString("type") ?: "Ghi chú"
                 val type = when (typeStr.lowercase()) {
-                    "quiz", "bộ đề", "trắc nghiệm" -> com.example.eduvault.feature.library.ui.LibraryDocType.QUIZ
-                    "slide", "bài giảng" -> com.example.eduvault.feature.library.ui.LibraryDocType.SLIDE
-                    "tóm tắt", "summary" -> com.example.eduvault.feature.library.ui.LibraryDocType.SUMMARY
-                    else -> com.example.eduvault.feature.library.ui.LibraryDocType.NOTE
+                    "quiz", "bộ đề", "trắc nghiệm" -> LibraryDocumentType.QUIZ
+                    "slide", "bài giảng" -> LibraryDocumentType.SLIDE
+                    "tóm tắt", "summary" -> LibraryDocumentType.SUMMARY
+                    else -> LibraryDocumentType.NOTE
                 }
                 val quantityLabel = doc.getString("quantityLabel") ?: "Tài liệu tự đăng"
                 val rating = doc.getDouble("rating")?.toFloat() ?: 0.0f
@@ -131,7 +117,7 @@ class AdminRepositoryImpl @Inject constructor(
                 val reportCount = doc.getLong("reportCount")?.toInt() ?: 0
                 val authorId = doc.getString("authorId") ?: ""
                 val fileSizeBytes = doc.getLong("fileSizeBytes") ?: 0L
-                LibraryDoc(
+                LibraryDocument(
                     id = id,
                     courseCode = courseCode,
                     title = title,
@@ -156,8 +142,8 @@ class AdminRepositoryImpl @Inject constructor(
 
     override suspend fun dismissReport(docId: String): Result<Unit> {
         return try {
-            firestore.collection("documents").document(docId)
-                .update("reportCount", 0L).await()
+            functions.availableCallable("dismissDocumentReports")
+                .call(mapOf("documentId" to docId)).await()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(Exception("Bác tố cáo thất bại: ${e.localizedMessage}"))
@@ -186,6 +172,12 @@ class AdminRepositoryImpl @Inject constructor(
                 
                 val role = doc.getString("role") ?: "user"
                 val isBlocked = doc.getBoolean("isBlocked") ?: false
+                val quizCount = doc.getLong("quizCount")?.toInt() ?: 0
+                val rawAverage = doc.getDouble("quizAverageScore") ?: 0.0
+                val quizAverageScore = (if (rawAverage > 10.0) rawAverage / 10.0 else rawAverage)
+                    .toFloat()
+                    .coerceIn(0.0f, 10.0f)
+                val totalXp = doc.getLong("totalXp")?.toInt() ?: 0
                 
                 com.example.eduvault.domain.model.User(
                     uid = uid,
@@ -197,7 +189,11 @@ class AdminRepositoryImpl @Inject constructor(
                     uploadCount = uploadCount,
                     createdAt = milliseconds,
                     role = role,
-                    isBlocked = isBlocked
+                    isBlocked = isBlocked,
+                    quizCount = quizCount,
+                    quizAverageScore = quizAverageScore,
+                    totalXp = totalXp,
+                    trainingProgressPercent = doc.getLong("trainingProgressPercent")?.toInt()?.coerceIn(0, 100) ?: 0
                 )
             }
             Result.success(list)
@@ -208,7 +204,7 @@ class AdminRepositoryImpl @Inject constructor(
 
     override suspend fun updateUserBlockStatus(uid: String, isBlocked: Boolean): Result<Unit> {
         return try {
-            functions.getHttpsCallable("setUserBlocked")
+            functions.availableCallable("setUserBlocked")
                 .call(mapOf("userId" to uid, "isBlocked" to isBlocked)).await()
             Result.success(Unit)
         } catch (e: Exception) {

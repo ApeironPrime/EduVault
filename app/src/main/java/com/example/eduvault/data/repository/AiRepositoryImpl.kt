@@ -1,10 +1,11 @@
 package com.example.eduvault.data.repository
 
+import com.example.eduvault.BuildConfig
 import com.example.eduvault.domain.model.AiChatMessage
 import com.example.eduvault.domain.model.DocViewerTabsContent
+import com.example.eduvault.domain.model.QuizAnswer
+import com.example.eduvault.domain.model.QuizQuestion
 import com.example.eduvault.domain.repository.AiRepository
-import com.example.eduvault.feature.quiz.ui.QuizAnswer
-import com.example.eduvault.feature.quiz.ui.QuizQuestion
 import com.google.firebase.functions.FirebaseFunctions
 import kotlinx.coroutines.tasks.await
 import org.json.JSONArray
@@ -90,7 +91,8 @@ class AiRepositoryImpl @Inject constructor(
     }
 
     private suspend fun call(operation: String, payload: Map<String, Any>): String {
-        val result = functions.getHttpsCallable("generateAiContent")
+        check(!BuildConfig.SPARK_ONLY) { "AI trực tuyến chưa bật trong bản Spark 0 phí." }
+        val result = functions.availableCallable("generateAiContent")
             .call(payload + ("operation" to operation))
             .await()
         val data = result.data as? Map<*, *> ?: error("Invalid AI gateway response.")

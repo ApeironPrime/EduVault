@@ -3,6 +3,7 @@ package com.example.eduvault.domain.repository
 import com.example.eduvault.domain.model.DocViewerTabsContent
 import com.example.eduvault.domain.model.DocumentPage
 import com.example.eduvault.domain.model.LibraryDocument
+import java.io.File
 
 /**
  * Interface cho DocumentRepository - Quản lý tài liệu.
@@ -48,6 +49,21 @@ interface DocumentRepository {
         docId: String, 
         content: DocViewerTabsContent
     ): Result<Unit>
+
+    /**
+     * Lấy bản tóm tắt thông minh đã lưu cache trong Firestore (nếu có).
+     */
+    suspend fun getCachedSummary(docId: String): Result<String?>
+
+    /**
+     * Lưu cache bản tóm tắt thông minh vào Firestore.
+     */
+    suspend fun saveCachedSummary(docId: String, summary: String): Result<Unit>
+
+    /**
+     * Tải tệp PDF từ Cloud/Network về máy cục bộ an toàn trên luồng nền.
+     */
+    suspend fun downloadDocumentPdf(downloadUrl: String, destinationFile: File): Result<File>
 
     /**
      * Xóa tài liệu học tập khỏi hệ thống.

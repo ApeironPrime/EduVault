@@ -24,7 +24,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            buildConfigField("boolean", "SPARK_ONLY", "true")
+        }
         release {
+            buildConfigField("boolean", "SPARK_ONLY", "true")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -41,6 +45,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     packaging {
@@ -74,7 +79,6 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.hilt.navigation.compose)
     implementation(libs.androidx.datastore.preferences)
-    implementation(libs.firebase.storage)
     implementation(libs.googleid)
 
     implementation(libs.kotlinx.coroutines.core)
@@ -89,6 +93,7 @@ dependencies {
     implementation(libs.firebase.firestore)
     implementation(libs.firebase.functions)
     implementation(libs.firebase.appcheck.playintegrity)
+    debugImplementation(libs.firebase.appcheck.debug)
     implementation(libs.firebase.storage)
 
     testImplementation(libs.junit)
